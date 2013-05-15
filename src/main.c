@@ -308,17 +308,17 @@ uint8_t bindReceive(uint32_t timeout)
   uint32_t start = millis();
   init_rfm(1,1);
   to_rx_mode(1);
-  printf("Waiting bind\n");
+  printf("Waiting bind\r\n");
 
   while ((!timeout) || ((millis() - start) < timeout)) {
     //    if (RF_Mode == Received) {   // RFM22B int16_t pin Enabled by received Data
     if (rfmCheckInt(1)) {   // RFM22B int16_t pin Enabled by received Data
-      printf("Got pkt\n");
+      printf("Got pkt\r\n");
 
       rfmReceive(1, (uint8_t *)&bind_data, sizeof(bind_data));
 
       if (bind_data.version == BINDING_VERSION) {
-        printf("data good\n");
+        printf("data good\r\n");
         return 1;
       } else {
         rx_reset(1);
@@ -366,9 +366,9 @@ void loop()
       LEDB_ON;
       configurePWMs(ppmChannels);
     } else {
-      //      if ((PPM_output) && (bind_data.flags & FAILSAFE_NOPPM)) {
-      //  TCCR1A |= ((1 << COM1A1) | (1 << COM1A0));
-      //}
+      if (bind_data.flags & FAILSAFE_NOPPM) {
+	enablePPMout(1);
+      }
     }
 
     if (rx_buf[0] == 0xF5) {
@@ -407,6 +407,7 @@ void loop()
     if (RSSI_count > 20) {
       RSSI_sum /= RSSI_count;
       //      set_RSSI_output(map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255));
+      printf("RSSI %d\r\n",RSSI_sum);
       RSSI_sum = 0;
       RSSI_count = 0;
     }
@@ -435,9 +436,9 @@ void loop()
         lostpack = 11;
         // Serious trouble, apply failsafe
         //load_failsafe_values();
-        //if ((PPM_output) && (bind_data.flags & FAILSAFE_NOPPM)) {
-        //  TCCR1A &= ~((1 << COM1A1) | (1 << COM1A0));
-        //}
+        if (bind_data.flags & FAILSAFE_NOPPM) {
+	  enablePPMout(0);
+        }
         fs_time = time;
       } else if (bind_data.beacon_interval && bind_data.beacon_deadtime &&
                  bind_data.beacon_frequency) {
@@ -489,16 +490,23 @@ int main(void)
   configureSPI();
   rfmPreInit();
 
-  while (!bindReceive(1000)) {
-    if (uartAvailable() && ('R' == uartRead())) {
-      systemReset(true);      // reboot to bootloader
+  if (bindReadEeprom()) {
+    if (bindReceive(1000)) {
+      bindWriteEeprom();
     }
+  } else {
+    while (!bindReceive(1000)) {
+      if (uartAvailable() && ('R' == uartRead())) {
+	systemReset(true);      // reboot to bootloader
+      }
+    }
+    bindWriteEeprom();
   }
-
+  
   printf("Entering normal mode\r\n");
 
   ppmChannels = getChannelCount(&bind_data);
-  printf("Entering normal mode with PPM=%d CHs=%d\n", PPM_output, ppmChannels);
+  printf("Entering normal mode with PPM=%d CHs=%d\r\n", PPM_output, ppmChannels);
   init_rfm(1,0);   // Configure the RFM22B's registers for normal operation
   RF_channel = 0;
   rfmSetChannel(1,bind_data.hopchannel[RF_channel]);

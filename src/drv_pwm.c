@@ -119,6 +119,22 @@ static void pwmGPIOConfig(GPIO_TypeDef *gpio, uint32_t pin)
     GPIO_Init(gpio, &GPIO_InitStructure);
 }
 
+void enablePPMout(bool enable)
+{
+  GPIO_InitTypeDef GPIO_InitStructure;
+  
+  GPIO_StructInit(&GPIO_InitStructure);
+  GPIO_InitStructure.GPIO_Pin = timerHardware[12].pin;
+  if (enable) {
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+  } else {
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+    GPIO_SetBits(timerHardware[12].gpio, timerHardware[12].pin);
+  }
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+  GPIO_Init(timerHardware[12].gpio, &GPIO_InitStructure);
+}
+
 void setPWM(uint8_t ch, uint16_t value)
 {
   if (ch>15) return;

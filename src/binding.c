@@ -1,6 +1,19 @@
 #include "board.h"
 
-uint8_t default_hop_list[] = {DEFAULT_HOPLIST};
+#ifndef FLASH_PAGE_COUNT
+#define FLASH_PAGE_COUNT 128
+#endif
+
+#define FLASH_PAGE_SIZE  ((uint16_t)0x400)
+#define FLASH_WRITE_ADDR (0x08000000 + (uint32_t)FLASH_PAGE_SIZE * (FLASH_PAGE_COUNT - 1)) // use the last page
+
+struct flash_head {
+  uint32_t magic;
+  uint32_t size;
+  uint32_t checksum;
+  uint32_t reserved;
+};
+
 struct bind_data bind_data;
 
 struct rfm22_modem_regs modem_params[] = {
@@ -8,7 +21,6 @@ struct rfm22_modem_regs modem_params[] = {
   { 9600, 0x05, 0x40, 0x0a, 0xa1, 0x20, 0x4e, 0xa5, 0x00, 0x20, 0x24, 0x4e, 0xa5, 0x2c, 0x23, 0x30 }, // 25000 0x00
   { 19200,0x06, 0x40, 0x0a, 0xd0, 0x00, 0x9d, 0x49, 0x00, 0x7b, 0x28, 0x9d, 0x49, 0x2c, 0x23, 0x30 }  // 25000 0x01
 };
-
 
 struct rfm22_modem_regs bind_params =
   { 9600, 0x05, 0x40, 0x0a, 0xa1, 0x20, 0x4e, 0xa5, 0x00, 0x20, 0x24, 0x4e, 0xa5, 0x2c, 0x23, 0x30 };
@@ -51,62 +63,85 @@ uint32_t getInterval()
   return ret;
 }
 
+static uint32_t checksum(uint8_t *data, uint32_t size) {
+  uint32_t ret = 0;
+  while (size--) {
+    if (ret & 0x80000000) {
+      ret = (ret<<1) | 1;
+    } else {
+      ret = (ret<<1);
+    }
+    ret^=*(data++);
+  }
+  return ret;
+}
+
 int16_t bindReadEeprom()
 {
-  uint32_t temp = 0;
-  uint8_t i;
-  for (i = 0; i < 4; i++) {
-    //    temp = (temp<<8) + EEPROM.read(EEPROM_OFFSET + i);
-  }
-  if (temp!=BIND_MAGIC) {
+  const struct flash_head *head = (const struct flash_head*)(FLASH_WRITE_ADDR);
+  const struct bind_data *temp = (const struct bind_data*)(FLASH_WRITE_ADDR + sizeof(struct flash_head));
+  if (head->magic != BIND_MAGIC) {
+    printf("FLASH MAGIC FAIL\r\n");
     return 0;
   }
-
-  for (i = 0; i < sizeof(bind_data); i++) {
-    //    *((uint8_t*)&bind_data + i) = EEPROM.read(EEPROM_OFFSET + 4 + i);
-  }
-
-  if (bind_data.version != BINDING_VERSION) {
+  
+  if (head->size != sizeof(bind_data)) {
+    printf("FLASH SIZE FAIL\r\n");
     return 0;
   }
-
+  
+  if (head->checksum != checksum((uint8_t*)temp, sizeof(bind_data))) {
+    printf("FLASH CHECKSUM FAIL\r\n");
+    return 0;
+  }
+  
+  if (temp->version != BINDING_VERSION) {
+    printf("FLASH VERSION FAIL\r\n");
+    return 0;
+  }
+  
+  memcpy(&bind_data, temp, sizeof(bind_data));
+  
   return 1;
 }
 
 void bindWriteEeprom(void)
 {
-  uint8_t i;
-  for (i = 0; i < 4; i++) {
-    //EEPROM.write(EEPROM_OFFSET + i, (BIND_MAGIC >> ((3-i) * 8))& 0xff);
-  }
+  FLASH_Status status;
+  uint32_t i;
 
-  for (i = 0; i < sizeof(bind_data); i++) {
-    //EEPROM.write(EEPROM_OFFSET + 4 + i, *((uint8_t*)&bind_data + i));
+  struct flash_head head;
+  
+  head.magic = BIND_MAGIC;
+  head.size = sizeof(bind_data);
+  head.checksum = checksum((uint8_t*)(&bind_data), sizeof(bind_data));
+  
+  FLASH_Unlock();
+  FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
+
+  if (FLASH_ErasePage(FLASH_WRITE_ADDR) == FLASH_COMPLETE) {
+    for (i = 0; i < sizeof(struct flash_head); i += 4) {
+      status = FLASH_ProgramWord(FLASH_WRITE_ADDR + i, *(uint32_t *) ((char *)&head + i));
+      if (status != FLASH_COMPLETE) {
+	FLASH_Lock();
+	printf("FLASH ERROR on head!!!\r\n");
+	while(1);
+      }
+    }
+    for (i = 0; i < sizeof(struct bind_data); i += 4) {
+      status = FLASH_ProgramWord(FLASH_WRITE_ADDR + sizeof(struct flash_head) + i, *(uint32_t *) ((char *)&bind_data + i));
+      if (status != FLASH_COMPLETE) {
+	FLASH_Lock();
+	printf("FLASH ERROR on bind!!!\r\n");
+	while(1);
+      }
+    }
+
+  } else {
+    printf("FLASH ERASE FAILED\r\n");
   }
+  FLASH_Lock();
 }
 
-void bindInitDefaults(void)
-{
-  uint8_t c;
-
-  bind_data.version = BINDING_VERSION;
-  bind_data.rf_power = DEFAULT_RF_POWER;
-  bind_data.rf_frequency = DEFAULT_CARRIER_FREQUENCY;
-  bind_data.rf_channel_spacing = DEFAULT_CHANNEL_SPACING;
-
-  bind_data.rf_magic = DEFAULT_RF_MAGIC;
-
-  bind_data.hopcount = sizeof(default_hop_list) / sizeof(default_hop_list[0]);
-
-  for (c = 0; c < 8; c++) {
-    bind_data.hopchannel[c] = (c < bind_data.hopcount) ? default_hop_list[c] : 0;
-  }
-
-  bind_data.modem_params = DEFAULT_DATARATE;
-  bind_data.flags = DEFAULT_FLAGS;
-  bind_data.beacon_frequency = DEFAULT_BEACON_FREQUENCY;
-  bind_data.beacon_interval = DEFAULT_BEACON_INTERVAL;
-  bind_data.beacon_deadtime = DEFAULT_BEACON_DEADTIME;
-}
 
 

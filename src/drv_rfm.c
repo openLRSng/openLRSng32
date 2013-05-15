@@ -196,7 +196,10 @@ void tx_packet(uint8_t unit, uint8_t* pkt, uint8_t size)
 #endif
   rfmWriteRegister(unit, 0x07, RF22B_PWRSTATE_TX);    // to tx mode
 
-  //  while (nIRQ_1);
+  while (!rfmCheckInt(1));
+  ItStatus1 = rfmReadRegister(unit, 0x03);      //read the Interrupt Status1 register
+  ItStatus2 = rfmReadRegister(unit, 0x04);
+
 
 #ifdef TX_TIMING
   Serial.print("TX took:");
