@@ -322,6 +322,7 @@ uint8_t rx_buf[21]; // RX buffer
 void loop()
 {
   uint32_t time;
+  uint8_t  rfm1,rfm2;
   
   if (rfmReadRegister(1, 0x0C) == 0) {     // detect the locked module and reboot
     printf("RX hang\r\n");
@@ -330,16 +331,18 @@ void loop()
   }
   
   //time = micros();
-  
-  if (rfmCheckInt(1)) {   // RFM22B int16_t pin Enabled by received Data
-    
+  rfm1=rfmCheckInt(1);
+  rfm2=rfmCheckInt(2);
+  if (rfm1 || rfm2) {
+    uint8_t rfmRXed = rfm1?1:2;
+
     last_pack_time = micros(); // record last package time
     lostpack = 0;
     
     LEDR_OFF;
     LEDG_ON;
     
-    rfmReceive(1, rx_buf, getPacketSize());
+    rfmReceive(rfmRXed, rx_buf, getPacketSize());
     
     if ((rx_buf[0] == 0x5E) || (rx_buf[0] == 0xF5)) {
       uint8_t i;
@@ -368,14 +371,18 @@ void loop()
       fs_saved = 0;
     }
 
+    rfm1=rfmCheckInt(1);
+    rfm2=rfmCheckInt(2);
     if (bind_data.flags & TELEMETRY_ENABLED) {
       // reply with telemetry
       uint8_t telemetry_packet[4];
       telemetry_packet[0] = last_rssi_value;
-      tx_packet(1,telemetry_packet, 4);
+      rx_ready((rfmRXed==1)?2:1); // shutdown other module
+      tx_packet(rfmRXed,telemetry_packet, 4);
     }
 
     rx_reset(1);
+    rx_reset(2);
 
     willhop = 1;
 
@@ -457,6 +464,7 @@ void loop()
     }
 
     rfmSetChannel(1,bind_data.hopchannel[RF_channel]);
+    rfmSetChannel(2,bind_data.hopchannel[RF_channel]);
     willhop = 0;
   }
 
@@ -496,10 +504,13 @@ int main(void)
   ppmChannels = getChannelCount(&bind_data);
   printf("Entering normal mode with PPM=%d CHs=%d\r\n", PPM_output, ppmChannels);
   init_rfm(1,0);   // Configure the RFM22B's registers for normal operation
+  init_rfm(2,0);   // Configure the RFM22B's registers for normal operation
   RF_channel = 0;
   rfmSetChannel(1,bind_data.hopchannel[RF_channel]);
+  rfmSetChannel(2,bind_data.hopchannel[RF_channel]);
 
   to_rx_mode(1);
+  to_rx_mode(2);
   firstpack = 0;
 
   while(1){

@@ -160,6 +160,16 @@ void to_rx_mode(uint8_t unit)
   rx_reset(unit);
 }
 
+void rx_ready(uint8_t unit)
+{
+  ItStatus1 = rfmReadRegister(unit, 0x03);
+  ItStatus2 = rfmReadRegister(unit, 0x04);
+  rfmWriteRegister(unit, 0x07, RF22B_PWRSTATE_READY);
+  rfmWriteRegister(unit, 0x05, 0);
+  ItStatus1 = rfmReadRegister(unit, 0x03);
+  ItStatus2 = rfmReadRegister(unit, 0x04);
+}
+
 void rx_reset(uint8_t unit)
 {
   rfmWriteRegister(unit, 0x07, RF22B_PWRSTATE_READY);
@@ -196,7 +206,7 @@ void tx_packet(uint8_t unit, uint8_t* pkt, uint8_t size)
 #endif
   rfmWriteRegister(unit, 0x07, RF22B_PWRSTATE_TX);    // to tx mode
 
-  while (!rfmCheckInt(1));
+  while (!rfmCheckInt(unit));
   ItStatus1 = rfmReadRegister(unit, 0x03);      //read the Interrupt Status1 register
   ItStatus2 = rfmReadRegister(unit, 0x04);
 
@@ -292,6 +302,7 @@ int8_t rfmCheckInt(uint8_t unit)
   if ((unit==1)||(unit==2)) {
     if (rfmIntFired[unit-1]) {
       rfmIntFired[unit-1]=0;
+      printf("%d\r\n",unit);
       return 1;
     }
   }
