@@ -44,22 +44,23 @@ typedef struct {
 } pwmHardware_t;
 
 volatile uint16_t PPMout[16]; // 12PWM upto 16 PPM
+volatile uint16_t PPMsync;
 volatile uint8_t  PPMch=0;
-uint16_t activeChannels = 12;
+static uint16_t activeChannels = 12;
 
 static pwmHardware_t timerHardware[] = {
-    { TIM2, GPIOA, GPIO_Pin_0, TIM_Channel_1, TIM2_IRQn, 0, },          // PWM1
-    { TIM2, GPIOA, GPIO_Pin_1, TIM_Channel_2, TIM2_IRQn, 0, },          // PWM2
-    { TIM2, GPIOA, GPIO_Pin_2, TIM_Channel_3, TIM2_IRQn, 0, },          // PWM3
-    { TIM2, GPIOA, GPIO_Pin_3, TIM_Channel_4, TIM2_IRQn, 0, },          // PWM4
-    { TIM3, GPIOA, GPIO_Pin_6, TIM_Channel_1, TIM3_IRQn, 0, },          // PWM5
-    { TIM3, GPIOA, GPIO_Pin_7, TIM_Channel_2, TIM3_IRQn, 0, },          // PWM6
-    { TIM3, GPIOB, GPIO_Pin_0, TIM_Channel_3, TIM3_IRQn, 0, },          // PWM7
-    { TIM3, GPIOB, GPIO_Pin_1, TIM_Channel_4, TIM3_IRQn, 0, },          // PWM8
-    { TIM4, GPIOB, GPIO_Pin_9, TIM_Channel_4, TIM4_IRQn, 0, },          // PWM9
-    { TIM4, GPIOB, GPIO_Pin_8, TIM_Channel_3, TIM4_IRQn, 0, },          // PWM10
-    { TIM4, GPIOB, GPIO_Pin_7, TIM_Channel_2, TIM4_IRQn, 0, },          // PWM11
-    { TIM4, GPIOB, GPIO_Pin_6, TIM_Channel_1, TIM4_IRQn, 0, },          // PWM12
+    { TIM4, GPIOB, GPIO_Pin_6, TIM_Channel_1, TIM4_IRQn, 0, },          // PWM1
+    { TIM4, GPIOB, GPIO_Pin_7, TIM_Channel_2, TIM4_IRQn, 0, },          // PWM2
+    { TIM4, GPIOB, GPIO_Pin_8, TIM_Channel_3, TIM4_IRQn, 0, },          // PWM3
+    { TIM4, GPIOB, GPIO_Pin_9, TIM_Channel_4, TIM4_IRQn, 0, },          // PWM4
+    { TIM3, GPIOB, GPIO_Pin_1, TIM_Channel_4, TIM3_IRQn, 0, },          // PWM5
+    { TIM3, GPIOB, GPIO_Pin_0, TIM_Channel_3, TIM3_IRQn, 0, },          // PWM6
+    { TIM3, GPIOA, GPIO_Pin_7, TIM_Channel_2, TIM3_IRQn, 0, },          // PWM7
+    { TIM3, GPIOA, GPIO_Pin_6, TIM_Channel_1, TIM3_IRQn, 0, },          // PWM8
+    { TIM2, GPIOA, GPIO_Pin_3, TIM_Channel_4, TIM2_IRQn, 0, },          // PWM9
+    { TIM2, GPIOA, GPIO_Pin_2, TIM_Channel_3, TIM2_IRQn, 0, },          // PWM10
+    { TIM2, GPIOA, GPIO_Pin_1, TIM_Channel_2, TIM2_IRQn, 0, },          // PWM11
+    { TIM2, GPIOA, GPIO_Pin_0, TIM_Channel_1, TIM2_IRQn, 0, },          // PWM12
     { TIM1, GPIOA, GPIO_Pin_8, TIM_Channel_1, TIM1_CC_IRQn, 1, },       // PPM
 };
 
@@ -75,7 +76,7 @@ static void pwmTimeBase(TIM_TypeDef *tim, uint32_t period)
     TIM_TimeBaseInit(tim, &TIM_TimeBaseStructure);
 }
 
-static void pwmOCConfig(TIM_TypeDef *tim, uint8_t channel, uint16_t value)
+static void pwmOCConfig(TIM_TypeDef *tim, uint8_t channel, uint16_t value, bool inverted)
 {
     TIM_OCInitTypeDef  TIM_OCInitStructure;
 
@@ -84,7 +85,7 @@ static void pwmOCConfig(TIM_TypeDef *tim, uint8_t channel, uint16_t value)
     TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
     TIM_OCInitStructure.TIM_OutputNState = TIM_OutputNState_Disable;
     TIM_OCInitStructure.TIM_Pulse = value;
-    TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_Low;
+    TIM_OCInitStructure.TIM_OCPolarity = inverted?TIM_OCPolarity_High:TIM_OCPolarity_Low;
     TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Set;
 
     switch (channel) {
@@ -157,30 +158,40 @@ void TIM1_CC_IRQHandler(void)
   if (TIM_GetITStatus(TIM1, TIM_IT_CC1) == SET) {
     TIM_ClearITPendingBit(TIM1, TIM_IT_CC1);
     if (PPMch<activeChannels) {
-      timerHardware[12].tim->ARR = PPMout[PPMch++];
+      uint16_t out = PPMout[PPMch++];
+      timerHardware[12].tim->ARR = out;
+      PPMsync-=out;
+      if (PPMsync<2700) {
+	PPMsync=2700;
+      }
     } else {
-      timerHardware[12].tim->ARR = 3000;
+      timerHardware[12].tim->ARR = PPMsync;
       PPMch=0;
     }
   }
 }
 
-void configurePWMs()
+void configurePWMs(uint8_t channels)
 {
   uint8_t port;
+  uint8_t pwms = (channels<12)?channels:12;
+  activeChannels=channels;
+  
   // PWM outputs
   GPIO_PinRemapConfig(GPIO_PartialRemap_TIM3, DISABLE);
   GPIO_PinRemapConfig(GPIO_FullRemap_TIM3, DISABLE);
-  for (port=0; port<12; port++) {
+  for (port=0; port<pwms; port++) {
     pwmTimeBase(timerHardware[port].tim, 20000);
     pwmGPIOConfig(timerHardware[port].gpio, timerHardware[port].pin);
-    pwmOCConfig(timerHardware[port].tim, timerHardware[port].channel, 1000);
+    pwmOCConfig(timerHardware[port].tim, timerHardware[port].channel, 1000, 0);
     TIM_Cmd(timerHardware[port].tim, ENABLE);
   }
   // PPM output
+  PPMch=activeChannels;
+  PPMsync=3000;
   pwmTimeBase(timerHardware[12].tim, 1000);
   pwmGPIOConfig(timerHardware[12].gpio, timerHardware[12].pin);
-  pwmOCConfig(timerHardware[12].tim, timerHardware[12].channel, 300);
+  pwmOCConfig(timerHardware[12].tim, timerHardware[12].channel, 300, 1);
   pwmNVICConfig(timerHardware[12].irq);
   TIM_ITConfig(timerHardware[12].tim, TIM_IT_CC1, ENABLE);
   // Needed only on TIM1
