@@ -1,12 +1,5 @@
 #include "board.h"
 
-#ifndef FLASH_PAGE_COUNT
-#define FLASH_PAGE_COUNT 128
-#endif
-
-#define FLASH_PAGE_SIZE  ((uint16_t)0x400)
-#define FLASH_WRITE_ADDR (0x08000000 + (uint32_t)FLASH_PAGE_SIZE * (FLASH_PAGE_COUNT - 1)) // use the last page
-
 struct flash_head {
   uint32_t magic;
   uint32_t size;

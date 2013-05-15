@@ -48,6 +48,14 @@
 #define LEDB_ON   digitalHi(LEDB_GPIO,LEDB_PIN)
 #define LEDB_OFF  digitalLo(LEDB_GPIO,LEDB_PIN)
 
+#ifndef FLASH_PAGE_COUNT
+#define FLASH_PAGE_COUNT 128
+#endif
+
+#define FLASH_PAGE_SIZE  ((uint16_t)0x400)
+#define FLASH_WRITE_ADDR (0x08000000 + (uint32_t)FLASH_PAGE_SIZE * (FLASH_PAGE_COUNT - 1)) // use the last page
+#define FLASH_FSWRITE_ADDR (0x08000000 + (uint32_t)FLASH_PAGE_SIZE * (FLASH_PAGE_COUNT - 2)) // use the last page
+
 #include "drv_system.h"         // timers, delays, etc
 #include "drv_uart.h"
 #include "drv_pwm.h"

@@ -262,46 +262,34 @@ uint8_t lostpack = 0;
 
 bool willhop = 0, fs_saved = 0;
 
-#if 0
-#define FAILSAFE_OFFSET 0x80
-
+  
 void save_failsafe_values(void)
 {
-  uint8_t ee_buf[20];
+  FLASH_Status status;
+  uint32_t i;
 
-  packChannels(6, PPM, ee_buf);
-  for (int16_t i = 0; i < 20; i++) {
-    EEPROM.write(FAILSAFE_OFFSET + 4 +i, ee_buf[i]);
-  }
+  FLASH_Unlock();
+  FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
 
-  ee_buf[0]=0xFA;
-  ee_buf[1]=0x11;
-  ee_buf[2]=0x5A;
-  ee_buf[3]=0xFE;
-  for (int16_t i = 0; i < 4; i++) {
-    EEPROM.write(FAILSAFE_OFFSET + i, ee_buf[i]);
+  if (FLASH_ErasePage(FLASH_FSWRITE_ADDR) == FLASH_COMPLETE) {
+    for (i = 0; i < sizeof(PPM); i += 4) {
+      status = FLASH_ProgramWord(FLASH_FSWRITE_ADDR + i, *(uint32_t *) ((char *)&PPM + i));
+      if (status != FLASH_COMPLETE) {
+	break;
+      }
+    }
   }
+  FLASH_Lock();
 }
 
 void load_failsafe_values(void)
 {
-  uint8_t ee_buf[20];
-
-  for (int16_t i = 0; i < 4; i++) {
-    ee_buf[i] = EEPROM.read(FAILSAFE_OFFSET + i);
-  }
-
-  if ((ee_buf[0]==0xFA) && (ee_buf[1]==0x11) && (ee_buf[2]==0x5A) && (ee_buf[3]==0xFE)) {
-    for (int16_t i = 0; i < 20; i++) {
-      ee_buf[i] = EEPROM.read(FAILSAFE_OFFSET + 4 +i);
-    }
-    cli();
-    unpackChannels(6, PPM, ee_buf);
-    sei();
+  uint8_t i;
+  memcpy(&PPM, (char *)FLASH_FSWRITE_ADDR, sizeof(PPM));
+  for (i=0; i<ppmChannels; i++) {
+    setPWM(i,servoBits2Us(PPM[i]));
   }
 }
-
-#endif
 
 uint8_t bindReceive(uint32_t timeout)
 {
@@ -373,7 +361,7 @@ void loop()
 
     if (rx_buf[0] == 0xF5) {
       if (!fs_saved) {
-	//        save_failsafe_values();
+	save_failsafe_values();
         fs_saved = 1;
       }
     } else if (fs_saved) {
@@ -435,7 +423,7 @@ void loop()
       } else if (lostpack == 10) {
         lostpack = 11;
         // Serious trouble, apply failsafe
-        //load_failsafe_values();
+        load_failsafe_values();
         if (bind_data.flags & FAILSAFE_NOPPM) {
 	  enablePPMout(0);
         }
