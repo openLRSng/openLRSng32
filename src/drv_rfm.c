@@ -262,7 +262,7 @@ void beacon_send(uint8_t unit)
   rfmWriteRegister(unit, 0x73, 0x00);
   rfmWriteRegister(unit, 0x74, 0x00);    // no offset
 
-  rfmSetCarrierFrequency(unit, bind_data.beacon_frequency);
+  rfmSetCarrierFrequency(unit, rx_config.beacon_frequency);
 
   rfmWriteRegister(unit, 0x6d, 0x07);   // 7 set max power 100mW
 
@@ -302,7 +302,7 @@ int8_t rfmCheckInt(uint8_t unit)
   if ((unit==1)||(unit==2)) {
     if (rfmIntFired[unit-1]) {
       rfmIntFired[unit-1]=0;
-      printf("%d\r\n",unit);
+      //printf("%d\r\n",unit);
       return 1;
     }
   }

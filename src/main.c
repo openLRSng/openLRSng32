@@ -29,8 +29,7 @@ void checkReflash()
   LEDG_OFF;
 }
 
-#define PPM_CHANNELS 16
-volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 ,512,512,512,512,512,512,512,512};
+
 
 uint8_t twoBitfy(uint16_t in)
 {
@@ -127,14 +126,14 @@ void scannerMode(void)
 {
   char c;
   uint32_t nextConfig[4] = {0, 0, 0, 0};
-  uint32_t startFreq = 430000000, endFreq = 440000000, nrSamples = 500, stepSize = 50000;
+  uint32_t startFreq = MIN_RFM_FREQUENCY, endFreq = MAX_RFM_FREQUENCY, nrSamples = 500, stepSize = 50000;
   uint32_t currentFrequency = startFreq;
   uint32_t currentSamples = 0;
   uint8_t nextIndex = 0;
   uint8_t rssiMin = 0, rssiMax = 0;
   uint32_t rssiSum = 0;
   LEDR_OFF;
-  LEDR_OFF;
+  LEDG_OFF;
   printf("scanner mode\n");
   to_rx_mode(1);
 
@@ -157,10 +156,10 @@ void scannerMode(void)
         if (nextIndex == 4) {
 	  uint8_t reg1c;
           nextIndex = 0;
-          startFreq = nextConfig[0] * 1000000UL; // MHz
-          endFreq   = nextConfig[1] * 1000000UL; // MHz
+          startFreq = nextConfig[0] * 1000UL; // MHz
+          endFreq   = nextConfig[1] * 1000UL; // MHz
           nrSamples = nextConfig[2]; // count
-          stepSize  = nextConfig[3] * 10000UL;   // 10kHz
+          stepSize  = nextConfig[3] * 1000UL;   // 10kHz
           currentFrequency = startFreq;
           currentSamples = 0;
 
@@ -218,8 +217,8 @@ void scannerMode(void)
 
       currentSamples++;
     } else {
-      printf("%d,%d,%d,%d,\n",
-	     currentFrequency / 10000UL, rssiMax, rssiSum / currentSamples, rssiMin);
+      printf("%d,%d,%d,%d,\r\n",
+	     currentFrequency / 1000UL, rssiMax, rssiSum / currentSamples, rssiMin);
       currentFrequency += stepSize;
 
       if (currentFrequency > endFreq) {
@@ -238,6 +237,9 @@ void scannerMode(void)
  * OpenLRSng receiver code
  ****************************************************/
 
+#define PPM_CHANNELS 16
+volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 ,512,512,512,512,512,512,512,512};
+
 uint8_t RF_channel = 0;
 
 uint32_t time;
@@ -250,19 +252,25 @@ uint32_t last_beacon;
 uint8_t  RSSI_count = 0;
 uint16_t RSSI_sum = 0;
 uint8_t  last_rssi_value = 0;
+uint16_t  RSSI_out_value = 0;
 
 uint8_t  ppmCountter = 0;
 uint16_t ppmSync = 40000;
-uint8_t  ppmChannels = 8;
+uint8_t  ppmChannels = 16;
 
-bool PPM_output = 0; // set if PPM output is desired
+volatile uint8_t disablePWM = 0;
 
 uint8_t firstpack = 0;
 uint8_t lostpack = 0;
 
 bool willhop = 0, fs_saved = 0;
 
-  
+/*
+pinMask_t chToMask[PPM_CHANNELS];
+pinMask_t clearMask;
+*/
+
+//TODO: update
 void save_failsafe_values(void)
 {
   FLASH_Status status;
@@ -271,11 +279,19 @@ void save_failsafe_values(void)
   FLASH_Unlock();
   FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
 
-  if (FLASH_ErasePage(FLASH_FSWRITE_ADDR) == FLASH_COMPLETE) {
-    for (i = 0; i < sizeof(PPM); i += 4) {
-      status = FLASH_ProgramWord(FLASH_FSWRITE_ADDR + i, *(uint32_t *) ((char *)&PPM + i));
-      if (status != FLASH_COMPLETE) {
-	break;
+  if (FLASH_ErasePage(FLASH_FSWRITE_ADDR) == FLASH_COMPLETE)
+  {
+	status = FLASH_ProgramWord(FLASH_FSWRITE_ADDR, 0xDEADC0DE );
+		if (status != FLASH_COMPLETE)
+		{
+			//freak out!
+		}
+    for (i = 0; i < sizeof(PPM); i += 4)
+    {
+      status = FLASH_ProgramWord(FLASH_FSWRITE_ADDR + 4 + i, *(uint32_t *) ((char *)&PPM + i));
+      if (status != FLASH_COMPLETE)
+      {
+    	  break;
       }
     }
   }
@@ -284,33 +300,82 @@ void save_failsafe_values(void)
 
 void load_failsafe_values(void)
 {
-  uint8_t i;
-  memcpy(&PPM, (char *)FLASH_FSWRITE_ADDR, sizeof(PPM));
-  for (i=0; i<ppmChannels; i++) {
-    setPWM(i,servoBits2Us(PPM[i]));
+	uint32_t * tempb = (uint32_t *)FLASH_FSWRITE_ADDR;
+
+  if(*tempb == 0xDEADC0DE)
+  {
+	uint8_t i;
+	memcpy(&PPM, (char *)(FLASH_FSWRITE_ADDR + 4), sizeof(PPM));
+	for (i=0; i<PPM_CHANNELS; i++)
+	{
+		if(rx_config.RSSIpwm != i)
+		{
+			setPWM(i,servoBits2Us(PPM[i]));
+		}
+	}
   }
 }
 
 uint8_t bindReceive(uint32_t timeout)
 {
   uint32_t start = millis();
+  uint8_t  rxb;
   init_rfm(1,1);
   to_rx_mode(1);
+  LEDR_ON;
   printf("Waiting bind\r\n");
 
-  while ((!timeout) || ((millis() - start) < timeout)) {
+  while ((!timeout) || ((millis() - start) < timeout))
+  {
     //    if (RF_Mode == Received) {   // RFM22B int16_t pin Enabled by received Data
-    if (rfmCheckInt(1)) {   // RFM22B int16_t pin Enabled by received Data
+    if (rfmCheckInt(1))
+    {   // RFM22B int16_t pin Enabled by received Data
       printf("Got pkt\r\n");
+      rfmReceive(1, &rxb, 1);
+      if (rxb=='b')
+      {
+    	rfmReceive(1, (uint8_t *)&bind_data, sizeof(bind_data));
 
-      rfmReceive(1, (uint8_t *)&bind_data, sizeof(bind_data));
-
-      if (bind_data.version == BINDING_VERSION) {
-        printf("data good\r\n");
-        return 1;
-      } else {
-        rx_reset(1);
+        if (bind_data.version == BINDING_VERSION)
+        {
+          printf("data good\r\n");
+          rxb='B';
+          tx_packet(1,&rxb,1); // ACK that we got bound
+          LEDG_ON; //signal we got bound on LED:s
+//          if (timeout) {
+          return 1;
+//          }
+        }
       }
+      else if ((rxb=='p') || (rxb=='i'))
+      {
+        uint8_t rxc_buf[sizeof(rx_config)+1];
+        if (rxb=='p')
+        {
+          printf("Sending RX config\r\n");
+          rxc_buf[0]='P';
+          timeout=0;
+        }
+        else
+        {
+          printf("Reinit RX config\r\n");
+          rxInitDefaults();
+          rxWriteEeprom();
+          rxc_buf[0]='I';
+        }
+        memcpy(rxc_buf+1, &rx_config, sizeof(rx_config));
+        tx_packet(1,rxc_buf,sizeof(rx_config)+1);
+      }
+      else if (rxb=='u')
+      {
+        rfmReceive(1, (uint8_t *)&rx_config, sizeof(rx_config));
+        rxWriteEeprom();
+        printRXconf();
+        rxb='U';
+        tx_packet(1,&rxb,1); // ACK that we updated settings
+      }
+      //RF_Mode = Receive;
+      rx_reset(1);
     }
   }
   return 0;
@@ -324,7 +389,8 @@ void loop()
   uint32_t time;
   uint8_t  rfm1,rfm2;
   
-  if (rfmReadRegister(1, 0x0C) == 0) {     // detect the locked module and reboot
+  if (rfmReadRegister(1, 0x0C) == 0) // detect the locked module and reboot
+  {
     printf("RX hang\r\n");
     init_rfm(1,0);
     to_rx_mode(1);
@@ -344,36 +410,74 @@ void loop()
     
     rfmReceive(rfmRXed, rx_buf, getPacketSize());
     
-    if ((rx_buf[0] == 0x5E) || (rx_buf[0] == 0xF5)) {
+    if ((rx_buf[0]&0x3e) == 0x00) //servo data
+    {
       uint8_t i;
       unpackChannels(bind_data.flags & 7, PPM, rx_buf + 1);
-      for (i=0; i<ppmChannels; i++) {
-	setPWM(i,servoBits2Us(PPM[i]));
+
+      for (i=0; i<PPM_CHANNELS; i++)
+      {
+    	  if (rx_config.RSSIpwm == i)
+    		  setPWM(rx_config.RSSIpwm,servoBits2Us(RSSI_out_value<<2));
+    	  else
+    		  setPWM(i,servoBits2Us(PPM[rx_config.pinMapping[i]]));
       }
+
+      if(rx_config.pinMapping[PPM_PIN] == PINMAP_PPM)
+          enablePPMout(1);
     }
     
-    if (firstpack == 0) {
+    if (firstpack == 0)
+    {
       firstpack = 1;
       LEDB_ON;
-      configurePWMs(ppmChannels);
-    } else {
-      if (bind_data.flags & FAILSAFE_NOPPM) {
-	enablePPMout(1);
+      uint8_t i;
+      //printf("%d,%d,%d,%d,%d,%d",PINMAP_PPM,PPM_PIN,rx_config.pinMapping[PPM_PIN],PINMAP_RSSI,RSSI_PIN,rx_config.pinMapping[RSSI_PIN]);
+      for (i=0; i<MAX_OUTPUTS; i++)
+      {
+    	  if((rx_config.pinMapping[i] == PINMAP_PPM) & ( i == PPM_PIN ))
+    	  {
+    		  //printf("init ppm");
+    		  configurePPM(ppmChannels);
+    	  }
+    	  else if((rx_config.pinMapping[i] == PINMAP_RSSI) & ( i == RSSI_PIN ))
+    	  {
+    		  //printf("init rssipwm");
+    	  	  configureRssiPWM();
+    	  }
+    	  else
+    	  {
+    		  //config regular pwm/servo-rssi
+    		  printf("config servo ch%d",(i));
+    		  configureServoPWM(i);
+    	  }
+      }
+    }
+    else
+    {
+      if (bind_data.flags & FAILSAFE_NOPPM)
+      {
+    	  enablePPMout(1);
       }
     }
 
-    if (rx_buf[0] == 0xF5) {
-      if (!fs_saved) {
-	save_failsafe_values();
-        fs_saved = 1;
+    if (rx_buf[0] & 0x01)
+    {
+      if (!fs_saved)
+      {
+    	  save_failsafe_values();
+    	  fs_saved = 1;
       }
-    } else if (fs_saved) {
+    }
+    else if (fs_saved)
+    {
       fs_saved = 0;
     }
 
     rfm1=rfmCheckInt(1);
     rfm2=rfmCheckInt(2);
-    if (bind_data.flags & TELEMETRY_ENABLED) {
+    if (bind_data.flags & TELEMETRY_ENABLED)
+    {
       // reply with telemetry
       uint8_t telemetry_packet[4];
       telemetry_packet[0] = last_rssi_value;
@@ -386,23 +490,30 @@ void loop()
 
     willhop = 1;
 
-    LEDG_OFF;
+    //LEDG_OFF; //i prefer this bright :)
   }
 
   time = micros();
 
+  //printf("time - last_pack_time: %d\r\n",time - last_pack_time);
+  //printf("getInterval() - 1500 : %d\r\n",getInterval() - 1500);
+
   // sample RSSI when packet is in the 'air'
-  if ((lostpack < 2) && (last_rssi_time != last_pack_time) &&
-      (time - last_pack_time) > (getInterval(&bind_data) - 1500)) {
+  if ((lostpack < 2) & (last_rssi_time != last_pack_time) &
+      ((time - last_pack_time) > (getInterval() - 1500)))
+  {
     last_rssi_time = last_pack_time;
     last_rssi_value = rfmGetRSSI(1); // Read the RSSI value
     RSSI_sum += last_rssi_value;    // tally up for average
     RSSI_count++;
 
-    if (RSSI_count > 20) {
+    if (RSSI_count > 20)
+    {
       RSSI_sum /= RSSI_count;
-      //      set_RSSI_output(map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255));
+      //set_RSSI_output(map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255));
+      set_RSSI_output((uint8_t)constrain(RSSI_sum, 45, 255));
       printf("RSSI %d\r\n",RSSI_sum);
+      RSSI_out_value = RSSI_sum;
       RSSI_sum = 0;
       RSSI_count = 0;
     }
@@ -410,40 +521,57 @@ void loop()
 
   time = micros();
 
-  if (firstpack) {
-    if ((lostpack < 5) && (time - last_pack_time) > (getInterval(&bind_data) + 1000)) {
+  if (firstpack)
+  {
+    if ((lostpack < 5) && (time - last_pack_time) > (getInterval(&bind_data) + 1000))
+    {
       // we packet, hop to next channel
       lostpack++;
       last_pack_time += getInterval(&bind_data);
       willhop = 1;
       LEDR_ON;
-      //      set_RSSI_output(0);
-    } else if ((time - last_pack_time) > (getInterval(&bind_data) * bind_data.hopcount)) {
+      LEDG_OFF;
+      set_RSSI_output(0);
+    }
+    else if ((time - last_pack_time) > (getInterval(&bind_data) * bind_data.hopcount))
+    {
       // hop slowly to allow resync with TX
       last_pack_time = time;
 
-      if (lostpack < 10) {
+      if (lostpack < 10)
+      {
         lostpack++;
-        if ((bind_data.flags & FAILSAFE_FAST) && (lostpack > 6)) {
+        if ((bind_data.flags & FAILSAFE_FAST) && (lostpack > 6))
+        {
           lostpack=10; // go to failsafe faster
         }
-      } else if (lostpack == 10) {
+      }
+      else if (lostpack == 10)
+      {
         lostpack = 11;
         // Serious trouble, apply failsafe
         load_failsafe_values();
-        if (bind_data.flags & FAILSAFE_NOPPM) {
-	  enablePPMout(0);
+        if (bind_data.flags & FAILSAFE_NOPPM)
+        {
+        	enablePPMout(0);
         }
         fs_time = time;
-      } else if (bind_data.beacon_interval && bind_data.beacon_deadtime &&
-                 bind_data.beacon_frequency) {
-        if (lostpack == 11) {   // failsafes set....
-          if ((time - fs_time) > (bind_data.beacon_deadtime * 1000000UL)) {
+      }
+      else if (rx_config.beacon_interval && rx_config.beacon_deadtime &&
+    		  rx_config.beacon_frequency)
+      {
+        if (lostpack == 11)
+        {   // failsafes set....
+          if ((time - fs_time) > (rx_config.beacon_deadtime * 1000000UL))
+          {
             lostpack = 12;
             last_beacon = time;
           }
-        } else if (lostpack == 12) {   // beacon mode active
-          if ((time - last_beacon) > (bind_data.beacon_interval * 1000000UL)) {
+        }
+        else if (lostpack == 12)
+        {   // beacon mode active
+          if ((time - last_beacon) > (rx_config.beacon_interval * 1000000UL))
+          {
             last_beacon = time;
             beacon_send(1);
             init_rfm(1,0);   // go back to normal RX
@@ -456,10 +584,12 @@ void loop()
     }
   }
 
-  if (willhop == 1) {
+  if (willhop == 1)
+  {
     RF_channel++;
 
-    if (RF_channel >= bind_data.hopcount) {
+    if (RF_channel >= bind_data.hopcount)
+    {
       RF_channel = 0;
     }
 
@@ -478,46 +608,66 @@ int main(void)
   init_printf(NULL, _putc);
   uartInit(115200);
   delay(100);
-  checkReflash();
+  //checkReflash();
 
-  for (i=0; i<16; i++) {
+  rxReadEeprom();
+  printRXconf();
+
+  for (i=0; i<16; i++)
+  {
     setPWM(i,1000);
   }
   configureSPI();
   rfmPreInit();
 
-  if (bindReadEeprom()) {
-    if (bindReceive(1000)) {
+//  if (checkIfConnected(OUTPUT_PIN[2],OUTPUT_PIN[3]))
+//  { // ch1 - ch2 --> force scannerMode
+//    scannerMode();
+//  }
+
+
+  if (bindReadEeprom())
+  {
+	  printf("Good bind data found\r\n");
+    if (bindReceive(1000))
+    {
       bindWriteEeprom();
     }
-  } else {
-    while (!bindReceive(1000)) {
-      if (uartAvailable() && ('R' == uartRead())) {
-	systemReset(true);      // reboot to bootloader
-      }
+  }
+  else
+  {
+    while (!bindReceive(1000))
+    {
+     // if (uartAvailable() && ('R' == uartRead()))
+     // {
+     //	  systemReset(true);      // reboot to bootloader
+     // }
     }
     bindWriteEeprom();
   }
   
   printf("Entering normal mode\r\n");
-
+  LEDR_ON;
+  //do something with this
   ppmChannels = getChannelCount(&bind_data);
-  printf("Entering normal mode with PPM=%d CHs=%d\r\n", PPM_output, ppmChannels);
+  //printf("Entering normal mode with PPM=%d CHs=%d\r\n", PPM_output, ppmChannels);
   init_rfm(1,0);   // Configure the RFM22B's registers for normal operation
-  init_rfm(2,0);   // Configure the RFM22B's registers for normal operation
+  //init_rfm(2,0);   // Configure the RFM22B's registers for normal operation
   RF_channel = 0;
   rfmSetChannel(1,bind_data.hopchannel[RF_channel]);
-  rfmSetChannel(2,bind_data.hopchannel[RF_channel]);
+  //rfmSetChannel(2,bind_data.hopchannel[RF_channel]);
 
   to_rx_mode(1);
-  to_rx_mode(2);
+  //to_rx_mode(2);
   firstpack = 0;
 
-  while(1){
+  while(1)
+  {
     loop();
-    if (uartAvailable() && ('R' == uartRead())) {
-      systemReset(true);      // reboot to bootloader
-    }
+    //if (uartAvailable() && ('R' == uartRead()))
+    //{
+    //  systemReset(true);      // reboot to bootloader
+    //}
   }
 
 }

@@ -8,6 +8,7 @@ struct flash_head {
 };
 
 struct bind_data bind_data;
+struct rx_config rx_config;
 
 struct rfm22_modem_regs modem_params[] = {
   { 4800, 0x1a, 0x40, 0x0a, 0xa1, 0x20, 0x4e, 0xa5, 0x00, 0x1b, 0x1e, 0x27, 0x52, 0x2c, 0x23, 0x30 }, // 50000 0x00
@@ -49,9 +50,9 @@ uint32_t getInterval()
   ret= ((ret+999) / 1000) * 1000;
 
   // not faster than 50Hz
-  if (ret < 20000) {
-    ret = 20000;
-  }
+//  if (ret < 20000) {
+//    ret = 20000;
+//  }
 
   return ret;
 }
@@ -136,5 +137,161 @@ void bindWriteEeprom(void)
   FLASH_Lock();
 }
 
+void bindInitDefaults(void)
+{
+  bind_data.version = BINDING_VERSION;
+  bind_data.rf_power = DEFAULT_RF_POWER;
+  bind_data.rf_frequency = DEFAULT_CARRIER_FREQUENCY;
+  bind_data.rf_channel_spacing = DEFAULT_CHANNEL_SPACING;
 
+  bind_data.rf_magic = DEFAULT_RF_MAGIC;
+
+  //bind_data.hopcount = sizeof(default_hop_list) / sizeof(default_hop_list[0]);
+  uint8_t default_hop_list[] = {DEFAULT_HOPLIST};
+  uint8_t c;
+
+  for (c = 0; c < 8; c++) {
+    bind_data.hopchannel[c] = (c < bind_data.hopcount) ? default_hop_list[c] : 0;
+  }
+
+  bind_data.modem_params = DEFAULT_DATARATE;
+  bind_data.flags = DEFAULT_FLAGS;
+}
+
+void bindRandomize(void)
+{
+  uint8_t c;
+
+  bind_data.rf_magic = 0;
+  for (c = 0; c < 4; c++)
+  {
+    bind_data.rf_magic = (bind_data.rf_magic << 8) + (rand() % 255);
+  }
+
+  for (c = 0; c < bind_data.hopcount; c++)
+  {
+    uint8_t ch = (rand() % 50);
+
+    // don't allow same channel twice
+    uint8_t i;
+    for (i = 0; i < c; i++)
+    {
+      if (bind_data.hopchannel[i] == ch)
+      {
+    	  c--;
+      }
+      else
+      {
+    	  bind_data.hopchannel[c] = ch;
+      }
+    }
+  }
+}
+
+void rxInitDefaults()
+{
+  uint8_t i;
+//#if (BOARD_TYPE == 3)
+//  rx_config.rx_type = RX_FLYTRON8CH;
+//  rx_config.pinMapping[0] = PINMAP_RSSI; // the CH0 on 8ch RX
+//  for (i=1; i < 9; i++) {
+//    rx_config.pinMapping[i] = i-1; // default to PWM out
+//  }
+//#elif (BOARD_TYPE == 5)
+//  rx_config.rx_type = RX_OLRSNG4CH;
+//  for (i=0; i<5; i++) {
+//    rx_config.pinMapping[i]=i; // default to PWM out
+//  }
+#if (BOARD_TYPE == DTFUHF10CH)
+  rx_config.rx_type = RX_DTFUHF10CH;
+  for (i=0; i < 8; i++) {
+      rx_config.pinMapping[i] = i; // default to PWM out
+    }
+
+  rx_config.pinMapping[8] = PINMAP_RSSI;
+  rx_config.pinMapping[9] = PINMAP_PPM;
+
+#endif
+
+  rx_config.flags = 0;
+  rx_config.RSSIpwm = 255; //rssi injection disabled
+  rx_config.beacon_frequency = DEFAULT_BEACON_FREQUENCY;
+  rx_config.beacon_deadtime = DEFAULT_BEACON_DEADTIME;
+  rx_config.beacon_interval = DEFAULT_BEACON_INTERVAL;
+  rx_config.minsync = 3000;
+  rx_config.failsafe_delay = 10;
+}
+
+void rxWriteEeprom()
+{
+	FLASH_Status status;
+    uint32_t i;
+
+    FLASH_Unlock();
+    FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
+
+    if (FLASH_ErasePage(FLASH_RXWRITE_ADDR) == FLASH_COMPLETE)
+    {
+        status = FLASH_ProgramWord(FLASH_RXWRITE_ADDR, BIND_MAGIC);
+        if (status != FLASH_COMPLETE)
+        {
+        	FLASH_Lock();
+        	printf("FLASH ERROR on rx_config!!!\r\n");
+        	while(1);
+        }
+        else
+        {
+        	printf("flash success rx_bind_magic\r\n");
+        }
+        for (i = 0; i < sizeof(rx_config); i += 4)
+        {
+        	status = FLASH_ProgramWord(FLASH_RXWRITE_ADDR + 4 + i, *(uint32_t *) ((char *)&rx_config + i));
+        	if (status != FLASH_COMPLETE)
+        	{
+        		FLASH_Lock();
+        		printf("FLASH ERROR on rx_config!!!\r\n");
+        		while(1);
+        	}
+        }
+    }
+    else
+    {
+    	printf("FLASH ERASE FAILED\r\n");
+    }
+    FLASH_Lock();
+}
+
+void rxReadEeprom()
+{
+  uint32_t * tempb = (uint32_t *)FLASH_RXWRITE_ADDR;
+
+  if (*tempb != BIND_MAGIC)
+  {
+    printf("RXconf reinit\r\n");
+    rxInitDefaults();
+    rxWriteEeprom();
+  }
+  else
+  {
+	  const struct rx_config *temp = (const struct rx_config*)(FLASH_RXWRITE_ADDR + 4);
+	  memcpy(&rx_config, temp, sizeof(rx_config));
+    printf("RXconf loaded\r\n");
+  }
+}
+
+void printRXconf()
+{
+  uint8_t i;
+  printf("Type: %d\r\n",rx_config.rx_type);
+  for (i=0; i<13; i++) {
+    printf("pmap%d: %d\r\n",i,rx_config.pinMapping[i]);
+  }
+  printf("Flag: %d\r\n",rx_config.flags);
+  printf("rssi: %d\r\n",rx_config.RSSIpwm);
+  printf("Bfre: %d\r\n",rx_config.beacon_frequency);
+  printf("Bdea: %d\r\n",rx_config.beacon_deadtime);
+  printf("Bint: %d\r\n",rx_config.beacon_interval);
+  printf("msyc: %d\r\n",rx_config.minsync);
+  printf("fsfe: %d\r\n",rx_config.failsafe_delay);
+}
 
