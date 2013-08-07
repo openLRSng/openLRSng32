@@ -47,7 +47,7 @@ typedef struct {
 volatile uint16_t PPMout[16]; // 12PWM upto 16 PPM
 volatile uint16_t PPMsync;
 volatile uint8_t  PPMch=0;
-static uint16_t activeChannels = 12;
+static uint16_t activeChannels = 16;
 
 /*
  * this doesn't seem to match the schematic. it's backwards!
@@ -157,9 +157,12 @@ void enablePPMout(bool enable)
   
   GPIO_StructInit(&GPIO_InitStructure);
   GPIO_InitStructure.GPIO_Pin = timerHardware[PPM].pin;
-  if (enable) {
+  if (enable)
+  {
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
-  } else {
+  }
+  else
+  {
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
     GPIO_SetBits(timerHardware[PPM].gpio, timerHardware[PPM].pin);
   }
@@ -203,16 +206,21 @@ static void pwmNVICConfig(uint8_t irq)
 void TIM1_CC_IRQHandler(void)
 {
 
-  if (TIM_GetITStatus(TIM1, TIM_IT_CC1) == SET) {
+  if (TIM_GetITStatus(TIM1, TIM_IT_CC1) == SET)
+  {
     TIM_ClearITPendingBit(TIM1, TIM_IT_CC1);
-    if (PPMch<activeChannels) {
+    if (PPMch<activeChannels)
+    {
       uint16_t out = PPMout[PPMch++];
       timerHardware[PPM].tim->ARR = out;
       PPMsync -= out;
-      if (PPMsync < rx_config.minsync) {
-	PPMsync = rx_config.minsync;
+      if (PPMsync < rx_config.minsync)
+      {
+		PPMsync = rx_config.minsync;
       }
-    } else {
+    }
+    else
+    {
       timerHardware[PPM].tim->ARR = PPMsync;
       PPMch=0;
     }
@@ -233,7 +241,9 @@ void configureServoPWM(uint8_t port)
 void configurePPM(uint8_t ppmChannels)
 {
 	activeChannels = ppmChannels;
-	PPMch = ppmChannels;
+	if(rx_config.flags & PPM_MAX_8CH)
+		activeChannels = 8;
+	PPMch = activeChannels;
 	PPMsync = rx_config.minsync + 300;
 	//GPIO_PinRemapConfig(GPIO_PartialRemap_TIM3, DISABLE);
 	//GPIO_PinRemapConfig(GPIO_FullRemap_TIM3, DISABLE);

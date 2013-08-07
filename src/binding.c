@@ -208,8 +208,8 @@ void rxInitDefaults()
       rx_config.pinMapping[i] = i; // default to PWM out
     }
 
-  rx_config.pinMapping[8] = PINMAP_RSSI;
-  rx_config.pinMapping[9] = PINMAP_PPM;
+  rx_config.pinMapping[RSSI_PIN] = PINMAP_RSSI;
+  rx_config.pinMapping[PPM_PIN] = PINMAP_PPM;
 
 #endif
 

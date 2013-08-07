@@ -252,25 +252,20 @@ uint32_t last_beacon;
 uint8_t  RSSI_count = 0;
 uint16_t RSSI_sum = 0;
 uint8_t  last_rssi_value = 0;
-uint16_t  RSSI_out_value = 0;
+uint8_t  smoothRSSI = 0;
 
 uint8_t  ppmCountter = 0;
 uint16_t ppmSync = 40000;
 uint8_t  ppmChannels = 16;
 
 volatile uint8_t disablePWM = 0;
+volatile uint8_t disablePPM = 0;
 
 uint8_t firstpack = 0;
 uint8_t lostpack = 0;
 
 bool willhop = 0, fs_saved = 0;
 
-/*
-pinMask_t chToMask[PPM_CHANNELS];
-pinMask_t clearMask;
-*/
-
-//TODO: update
 void save_failsafe_values(void)
 {
   FLASH_Status status;
@@ -327,7 +322,6 @@ uint8_t bindReceive(uint32_t timeout)
 
   while ((!timeout) || ((millis() - start) < timeout))
   {
-    //    if (RF_Mode == Received) {   // RFM22B int16_t pin Enabled by received Data
     if (rfmCheckInt(1))
     {   // RFM22B int16_t pin Enabled by received Data
       printf("Got pkt\r\n");
@@ -399,7 +393,8 @@ void loop()
   //time = micros();
   rfm1=rfmCheckInt(1);
   rfm2=rfmCheckInt(2);
-  if (rfm1 || rfm2) {
+  if (rfm1 || rfm2)
+  {
     uint8_t rfmRXed = rfm1?1:2;
 
     last_pack_time = micros(); // record last package time
@@ -417,14 +412,12 @@ void loop()
 
       for (i=0; i<PPM_CHANNELS; i++)
       {
-    	  if (rx_config.RSSIpwm == i)
-    		  setPWM(rx_config.RSSIpwm,servoBits2Us(RSSI_out_value<<2));
-    	  else
-    		  setPWM(i,servoBits2Us(PPM[rx_config.pinMapping[i]]));
-      }
 
-      if(rx_config.pinMapping[PPM_PIN] == PINMAP_PPM)
-          enablePPMout(1);
+    	if (rx_config.RSSIpwm == i)
+    		setPWM(rx_config.RSSIpwm,servoBits2Us(smoothRSSI<<2));
+    	else
+    		setPWM(i,servoBits2Us(PPM[rx_config.pinMapping[i]]));
+      }
     }
     
     if (firstpack == 0)
@@ -432,33 +425,27 @@ void loop()
       firstpack = 1;
       LEDB_ON;
       uint8_t i;
-      //printf("%d,%d,%d,%d,%d,%d",PINMAP_PPM,PPM_PIN,rx_config.pinMapping[PPM_PIN],PINMAP_RSSI,RSSI_PIN,rx_config.pinMapping[RSSI_PIN]);
       for (i=0; i<MAX_OUTPUTS; i++)
       {
     	  if((rx_config.pinMapping[i] == PINMAP_PPM) & ( i == PPM_PIN ))
     	  {
-    		  //printf("init ppm");
     		  configurePPM(ppmChannels);
     	  }
     	  else if((rx_config.pinMapping[i] == PINMAP_RSSI) & ( i == RSSI_PIN ))
     	  {
-    		  //printf("init rssipwm");
     	  	  configureRssiPWM();
     	  }
     	  else
     	  {
     		  //config regular pwm/servo-rssi
-    		  printf("config servo ch%d",(i));
     		  configureServoPWM(i);
     	  }
       }
     }
     else
     {
-      if (bind_data.flags & FAILSAFE_NOPPM)
-      {
-    	  enablePPMout(1);
-      }
+    	disablePWM = 0;
+    	disablePPM = 0;
     }
 
     if (rx_buf[0] & 0x01)
@@ -493,14 +480,27 @@ void loop()
     //LEDG_OFF; //i prefer this bright :)
   }
 
+  if ((disablePPM == 1) & (rx_config.pinMapping[PPM_PIN] == PINMAP_PPM))
+  {
+	enablePPMout(0);
+  }
+  else
+  {
+	enablePPMout(1);
+  }
+  if(disablePWM)
+  {
+	uint8_t i;
+	for (i=0; i<PPM_CHANNELS; i++)
+	{
+	  setPWM(i,0);
+	}
+  }
+
   time = micros();
 
-  //printf("time - last_pack_time: %d\r\n",time - last_pack_time);
-  //printf("getInterval() - 1500 : %d\r\n",getInterval() - 1500);
-
   // sample RSSI when packet is in the 'air'
-  if ((lostpack < 2) & (last_rssi_time != last_pack_time) &
-      ((time - last_pack_time) > (getInterval() - 1500)))
+  if ((lostpack < 2) & (last_rssi_time != last_pack_time) & ((time - last_pack_time) > (getInterval() - 1500)))
   {
     last_rssi_time = last_pack_time;
     last_rssi_value = rfmGetRSSI(1); // Read the RSSI value
@@ -510,10 +510,9 @@ void loop()
     if (RSSI_count > 20)
     {
       RSSI_sum /= RSSI_count;
-      //set_RSSI_output(map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255));
-      set_RSSI_output((uint8_t)constrain(RSSI_sum, 45, 255));
-      printf("RSSI %d\r\n",RSSI_sum);
-      RSSI_out_value = RSSI_sum;
+      RSSI_sum = constrain(RSSI_sum, 45, 255);
+      smoothRSSI = (uint8_t)(((uint16_t)smoothRSSI * 6 + (uint16_t)RSSI_sum * 2)/8);
+      set_RSSI_output(smoothRSSI);
       RSSI_sum = 0;
       RSSI_count = 0;
     }
@@ -521,68 +520,63 @@ void loop()
 
   time = micros();
 
-  if (firstpack)
-  {
-    if ((lostpack < 5) && (time - last_pack_time) > (getInterval(&bind_data) + 1000))
-    {
-      // we packet, hop to next channel
-      lostpack++;
-      last_pack_time += getInterval(&bind_data);
-      willhop = 1;
-      LEDR_ON;
-      LEDG_OFF;
-      set_RSSI_output(0);
-    }
-    else if ((time - last_pack_time) > (getInterval(&bind_data) * bind_data.hopcount))
-    {
-      // hop slowly to allow resync with TX
-      last_pack_time = time;
-
-      if (lostpack < 10)
-      {
+  if (firstpack) {
+      if ((lostpack < bind_data.hopcount) && ((time - last_pack_time) > (getInterval(&bind_data) + 1000))) {
+        // we lost packet, hop to next channel
+        willhop = 1;
+        if (lostpack==0) {
+          fs_time = time;
+          last_beacon = 0;
+        }
         lostpack++;
-        if ((bind_data.flags & FAILSAFE_FAST) && (lostpack > 6))
-        {
-          lostpack=10; // go to failsafe faster
+        last_pack_time += getInterval(&bind_data);
+        willhop = 1;
+        LEDR_ON;
+        LEDG_OFF;
+        if (smoothRSSI>30) {
+          smoothRSSI-=30;
+        } else {
+          smoothRSSI=0;
         }
+        set_RSSI_output(smoothRSSI);
+      } else if ((lostpack == bind_data.hopcount) && ((time - last_pack_time) > (getInterval(&bind_data) * bind_data.hopcount))) {
+        // hop slowly to allow resync with TX
+        willhop = 1;
+        smoothRSSI=0;
+        set_RSSI_output(smoothRSSI);
+        last_pack_time = time;
       }
-      else if (lostpack == 10)
-      {
-        lostpack = 11;
-        // Serious trouble, apply failsafe
-        load_failsafe_values();
-        if (bind_data.flags & FAILSAFE_NOPPM)
-        {
-        	enablePPMout(0);
-        }
-        fs_time = time;
-      }
-      else if (rx_config.beacon_interval && rx_config.beacon_deadtime &&
-    		  rx_config.beacon_frequency)
-      {
-        if (lostpack == 11)
-        {   // failsafes set....
-          if ((time - fs_time) > (rx_config.beacon_deadtime * 1000000UL))
-          {
-            lostpack = 12;
-            last_beacon = time;
+
+      if (lostpack) {
+        if ((fs_time) && ((time - fs_time) > (uint32_t)(rx_config.failsafe_delay * 100000UL))) {
+          load_failsafe_values();
+          if (rx_config.flags & FAILSAFE_NOPWM) {
+            disablePWM = 1;
           }
+          if (rx_config.flags & FAILSAFE_NOPPM) {
+            disablePPM = 1;
+          }
+          fs_time=0;
+          last_beacon = (time + ((uint32_t)rx_config.beacon_deadtime * 1000000UL)) | 1; //beacon activating...
         }
-        else if (lostpack == 12)
-        {   // beacon mode active
-          if ((time - last_beacon) > (rx_config.beacon_interval * 1000000UL))
-          {
-            last_beacon = time;
+
+        if ((rx_config.beacon_frequency) && (last_beacon)) {
+          if (((time - last_beacon) < 0x80000000) && // last beacon is future during deadtime
+              (time - last_beacon) > ((uint32_t)rx_config.beacon_interval * 1000000UL)) {
             beacon_send(1);
             init_rfm(1,0);   // go back to normal RX
             rx_reset(1);
+            last_beacon = micros() | 1; // avoid 0 in time
           }
         }
       }
-
-      willhop = 1;
+    } else {
+      // Waiting for first packet, hop slowly
+      if ((time - last_pack_time) > (getInterval(&bind_data) * bind_data.hopcount)) {
+        last_pack_time = time;
+        willhop = 1;
+      }
     }
-  }
 
   if (willhop == 1)
   {
@@ -648,9 +642,7 @@ int main(void)
   
   printf("Entering normal mode\r\n");
   LEDR_ON;
-  //do something with this
   ppmChannels = getChannelCount(&bind_data);
-  //printf("Entering normal mode with PPM=%d CHs=%d\r\n", PPM_output, ppmChannels);
   init_rfm(1,0);   // Configure the RFM22B's registers for normal operation
   //init_rfm(2,0);   // Configure the RFM22B's registers for normal operation
   RF_channel = 0;

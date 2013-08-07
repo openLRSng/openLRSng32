@@ -27,11 +27,10 @@
 #define DEFAULT_DATARATE 2
 
 // FLAGS: 8bits |4 bit reserved|1bit telemetry enable|3bit channel config|
-#define FAILSAFE_NOPPM    0x01
-#define FAILSAFE_NOPWM    0x02
+#define FAILSAFE_NOPPM    0x01 //TODO: make sure this works
+#define FAILSAFE_NOPWM    0x02 //TODO: make sure this works
 #define PPM_MAX_8CH       0x04
 #define TELEMETRY_ENABLED 0x08
-#define FAILSAFE_FAST 0x00 //TODO: update this
 #define CHANNELS_4_4  1
 #define CHANNELS_8    2
 #define CHANNELS_8_4  3
