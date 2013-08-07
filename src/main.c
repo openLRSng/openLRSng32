@@ -254,7 +254,6 @@ uint16_t RSSI_sum = 0;
 uint8_t  last_rssi_value = 0;
 uint8_t  smoothRSSI = 0;
 
-uint8_t  ppmCountter = 0;
 uint16_t ppmSync = 40000;
 uint8_t  ppmChannels = 16;
 
@@ -429,15 +428,18 @@ void loop()
       {
     	  if((rx_config.pinMapping[i] == PINMAP_PPM) & ( i == PPM_PIN ))
     	  {
+    		  printf("config ppm chan %d\r\n",i);
     		  configurePPM(ppmChannels);
     	  }
     	  else if((rx_config.pinMapping[i] == PINMAP_RSSI) & ( i == RSSI_PIN ))
     	  {
+    		  printf("config rssi chan %d\r\n",i);
     	  	  configureRssiPWM();
     	  }
     	  else
     	  {
     		  //config regular pwm/servo-rssi
+    		  printf("config pwm chan %d\r\n",i);
     		  configureServoPWM(i);
     	  }
       }
@@ -479,8 +481,9 @@ void loop()
 
     //LEDG_OFF; //i prefer this bright :)
   }
-
-  if ((disablePPM == 1) & (rx_config.pinMapping[PPM_PIN] == PINMAP_PPM))
+if (rx_config.pinMapping[PPM_PIN] == PINMAP_PPM)
+{
+  if (disablePPM == 1)
   {
 	enablePPMout(0);
   }
@@ -488,6 +491,7 @@ void loop()
   {
 	enablePPMout(1);
   }
+}
   if(disablePWM)
   {
 	uint8_t i;

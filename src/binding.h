@@ -115,11 +115,6 @@ extern struct rfm22_modem_regs modem_params[];
 
 extern struct rfm22_modem_regs bind_params;
 
-#define RX_FLYTRON8CH 0x01
-#define RX_OLRSNG4CH  0x02
-#define RX_OLRSNG12CH 0x03
-#define RX_DTFUHF10CH 0x07
-
 #define PINMAP_PPM  0x20
 #define PINMAP_RSSI 0x21
 #define PINMAP_SDA  0x22
