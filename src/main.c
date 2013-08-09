@@ -374,6 +374,7 @@ uint8_t bindReceive(uint32_t timeout)
   return 0;
 }
 
+uint8_t hopcount;
 uint8_t rx_buf[21]; // RX buffer
 
 //############ MAIN LOOP ##############
@@ -525,7 +526,7 @@ if (rx_config.pinMapping[PPM_PIN] == PINMAP_PPM)
   time = micros();
 
   if (firstpack) {
-      if ((lostpack < bind_data.hopcount) && ((time - last_pack_time) > (getInterval(&bind_data) + 1000))) {
+      if ((lostpack < hopcount) && ((time - last_pack_time) > (getInterval(&bind_data) + 1000))) {
         // we lost packet, hop to next channel
         willhop = 1;
         if (lostpack==0) {
@@ -543,7 +544,7 @@ if (rx_config.pinMapping[PPM_PIN] == PINMAP_PPM)
           smoothRSSI=0;
         }
         set_RSSI_output(smoothRSSI);
-      } else if ((lostpack == bind_data.hopcount) && ((time - last_pack_time) > (getInterval(&bind_data) * bind_data.hopcount))) {
+      } else if ((lostpack == hopcount) && ((time - last_pack_time) > (getInterval(&bind_data) * hopcount))) {
         // hop slowly to allow resync with TX
         willhop = 1;
         smoothRSSI=0;
@@ -576,7 +577,7 @@ if (rx_config.pinMapping[PPM_PIN] == PINMAP_PPM)
       }
     } else {
       // Waiting for first packet, hop slowly
-      if ((time - last_pack_time) > (getInterval(&bind_data) * bind_data.hopcount)) {
+      if ((time - last_pack_time) > (getInterval(&bind_data) * hopcount)) {
         last_pack_time = time;
         willhop = 1;
       }
@@ -586,7 +587,7 @@ if (rx_config.pinMapping[PPM_PIN] == PINMAP_PPM)
   {
     RF_channel++;
 
-    if (RF_channel >= bind_data.hopcount)
+    if (RF_channel >= hopcount) //TODO: look into why kha didn't do this
     {
       RF_channel = 0;
     }
@@ -624,18 +625,17 @@ int main(void)
 //  }
 
 
-  if (bindReadEeprom())
-  {
+  if (bindReadEeprom()) {
 	  printf("Good bind data found\r\n");
-    if (bindReceive(1000))
-    {
-      bindWriteEeprom();
-    }
+	  if (rx_config.flags & ALWAYS_BIND) {
+		if (bindReceive(1000))
+    	{
+    		bindWriteEeprom();
+    	}
+	  }
   }
-  else
-  {
-    while (!bindReceive(1000))
-    {
+  else {
+    while (!bindReceive(1000)) {
      // if (uartAvailable() && ('R' == uartRead()))
      // {
      //	  systemReset(true);      // reboot to bootloader
@@ -645,6 +645,10 @@ int main(void)
   }
   
   printf("Entering normal mode\r\n");
+  hopcount = 0;
+  while ((hopcount < MAXHOPS) & (bind_data.hopchannel[hopcount] != 0)) {
+      hopcount++;
+    }
   LEDR_ON;
   ppmChannels = getChannelCount(&bind_data);
   init_rfm(1,0);   // Configure the RFM22B's registers for normal operation

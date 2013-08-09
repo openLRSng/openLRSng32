@@ -150,8 +150,8 @@ void bindInitDefaults(void)
   uint8_t default_hop_list[] = {DEFAULT_HOPLIST};
   uint8_t c;
 
-  for (c = 0; c < 8; c++) {
-    bind_data.hopchannel[c] = (c < bind_data.hopcount) ? default_hop_list[c] : 0;
+  for (c = 0; c < MAXHOPS; c++) {
+    bind_data.hopchannel[c] = (c < sizeof(DEFAULT_HOPLIST)) ? default_hop_list[c] : 0;
   }
 
   bind_data.modem_params = DEFAULT_DATARATE;
@@ -168,7 +168,7 @@ void bindRandomize(void)
     bind_data.rf_magic = (bind_data.rf_magic << 8) + (rand() % 255);
   }
 
-  for (c = 0; c < bind_data.hopcount; c++)
+  for (c = 0; bind_data.hopchannel[c] != 0; c++) //TODO: make sure this doesn't fuck up: for (c = 0; (bind_data.hopchannel[c] != 0) & (c < MAXHOPS); c++) {
   {
     uint8_t ch = (rand() % 50);
 

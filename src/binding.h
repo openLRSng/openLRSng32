@@ -26,11 +26,9 @@
 //  2 -- 19200bps, medium range
 #define DEFAULT_DATARATE 2
 
-// FLAGS: 8bits |4 bit reserved|1bit telemetry enable|3bit channel config|
-#define FAILSAFE_NOPPM    0x01 //TODO: make sure this works
-#define FAILSAFE_NOPWM    0x02 //TODO: make sure this works
-#define PPM_MAX_8CH       0x04
+// BIND FLAGS
 #define TELEMETRY_ENABLED 0x08
+#define FRSKY_ENABLED     0x10
 #define CHANNELS_4_4  1
 #define CHANNELS_8    2
 #define CHANNELS_8_4  3
@@ -38,6 +36,11 @@
 #define CHANNELS_12_4 5
 #define CHANNELS_16   6
 
+// RX flags
+#define FAILSAFE_NOPPM    0x01 //TODO: make sure this works
+#define FAILSAFE_NOPWM    0x02 //TODO: make sure this works
+#define PPM_MAX_8CH       0x04
+#define ALWAYS_BIND       0x08
 
 #define DEFAULT_FLAGS CHANNELS_8
 
@@ -58,7 +61,7 @@
 #define MAX_INTERVAL 255
 
 #define BINDING_POWER     0x00 // 1 mW
-#define BINDING_VERSION   6
+#define BINDING_VERSION   7
 
 //#define EEPROM_OFFSET     0x00
 //#define EEPROM_RX_OFFSET  0x40 // RX specific config struct
@@ -91,10 +94,10 @@ extern uint8_t default_hop_list[];
 
 struct __attribute__((__packed__)) bind_data {
 	  uint8_t version;
+	  uint32_t serial_baudrate;
 	  uint32_t rf_frequency;
 	  uint32_t rf_magic;
 	  uint8_t rf_power;
-	  uint8_t hopcount;
 	  uint8_t rf_channel_spacing;
 	  uint8_t hopchannel[MAXHOPS];
 	  uint8_t modem_params;
@@ -129,7 +132,7 @@ struct __attribute__((__packed__)) rx_config {
   uint8_t  flags;
   uint8_t  RSSIpwm;
   uint32_t beacon_frequency;
-  uint8_t  beacon_deadtime;
+  uint16_t  beacon_deadtime;
   uint8_t  beacon_interval;
   uint16_t minsync;
   uint8_t  failsafe_delay;
