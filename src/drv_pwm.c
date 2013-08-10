@@ -131,12 +131,12 @@ static void pwmGPIOConfig(GPIO_TypeDef *gpio, uint32_t pin)
     GPIO_Init(gpio, &GPIO_InitStructure);
 }
 
-void enablePPMout(bool enable)
+void enablePWMout(uint8_t ch, bool enable, bool polarity)
 {
   GPIO_InitTypeDef GPIO_InitStructure;
   
   GPIO_StructInit(&GPIO_InitStructure);
-  GPIO_InitStructure.GPIO_Pin = timerHardware[PPM_PIN].pin;
+  GPIO_InitStructure.GPIO_Pin = timerHardware[ch].pin;
   if (enable)
   {
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
@@ -144,10 +144,13 @@ void enablePPMout(bool enable)
   else
   {
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-    GPIO_SetBits(timerHardware[PPM_PIN].gpio, timerHardware[PPM_PIN].pin);
+    if(polarity)
+      GPIO_SetBits(timerHardware[ch].gpio, timerHardware[ch].pin); //write the port high
+    else
+      GPIO_ResetBits(timerHardware[ch].gpio, timerHardware[ch].pin); //write the port low
   }
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_Init(timerHardware[PPM_PIN].gpio, &GPIO_InitStructure);
+  GPIO_Init(timerHardware[ch].gpio, &GPIO_InitStructure);
 }
 
 void setPWM(uint8_t ch, uint16_t value)

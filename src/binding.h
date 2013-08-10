@@ -37,8 +37,8 @@
 #define CHANNELS_16   6
 
 // RX flags
-#define FAILSAFE_NOPPM    0x01 //TODO: make sure this works
-#define FAILSAFE_NOPWM    0x02 //TODO: make sure this works
+#define FAILSAFE_NOPPM    0x01
+#define FAILSAFE_NOPWM    0x02
 #define PPM_MAX_8CH       0x04
 #define ALWAYS_BIND       0x08
 

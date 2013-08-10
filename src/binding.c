@@ -151,7 +151,7 @@ void bindInitDefaults(void)
   uint8_t c;
 
   for (c = 0; c < MAXHOPS; c++) {
-    bind_data.hopchannel[c] = (c < sizeof(DEFAULT_HOPLIST)) ? default_hop_list[c] : 0;
+    bind_data.hopchannel[c] = ((c < sizeof(default_hop_list)) ? default_hop_list[c] : 0);
   }
 
   bind_data.modem_params = DEFAULT_DATARATE;
@@ -168,7 +168,7 @@ void bindRandomize(void)
     bind_data.rf_magic = (bind_data.rf_magic << 8) + (rand() % 255);
   }
 
-  for (c = 0; bind_data.hopchannel[c] != 0; c++) //TODO: make sure this doesn't fuck up: for (c = 0; (bind_data.hopchannel[c] != 0) & (c < MAXHOPS); c++) {
+  for (c = 0; (c < MAXHOPS) & (bind_data.hopchannel[c] != 0); c++) //TODO: make sure this doesn't fuck up
   {
     uint8_t ch = (rand() % 50);
 
@@ -213,7 +213,7 @@ void rxInitDefaults()
 
 #endif
 
-  rx_config.flags = 0;
+  rx_config.flags = ALWAYS_BIND;
   rx_config.RSSIpwm = 255; //rssi injection disabled
   rx_config.beacon_frequency = DEFAULT_BEACON_FREQUENCY;
   rx_config.beacon_deadtime = DEFAULT_BEACON_DEADTIME;

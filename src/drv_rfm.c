@@ -234,6 +234,7 @@ void beacon_tone(int32_t hz, int32_t len)
   }
 }
 
+//TODO: update to close encounters tone
 void beacon_send(uint8_t unit)
 {
   LEDG_ON
