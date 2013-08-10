@@ -14,11 +14,11 @@ void configureSPI()
   SPI_I2S_DeInit(SPI2);
 
   // Init pins
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_13 | GPIO_Pin_15; // SCK,MOSI
+  GPIO_InitStructure.GPIO_Pin = PIN_SCK | PIN_MOSI; // SCK,MOSI
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_10MHz;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
   GPIO_Init(GPIOB, &GPIO_InitStructure);
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_14; // MISO
+  GPIO_InitStructure.GPIO_Pin = PIN_MISO; // MISO
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_10MHz;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
   GPIO_Init(GPIOB, &GPIO_InitStructure);
@@ -34,5 +34,19 @@ void configureSPI()
 
 }
 
+void configureSPIBitBang()
+{
+  GPIO_InitTypeDef GPIO_InitStructure;
+
+  GPIO_InitStructure.GPIO_Pin = PIN_SCK | PIN_MOSI; // SCK,MOSI
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+  GPIO_Init(GPIOB, &GPIO_InitStructure);
+  GPIO_InitStructure.GPIO_Pin = PIN_MISO; // MISO
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+  GPIO_Init(GPIOB, &GPIO_InitStructure);
+
+}
 
 
