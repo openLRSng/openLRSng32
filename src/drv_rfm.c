@@ -217,21 +217,31 @@ void tx_packet(uint8_t unit, uint8_t* pkt, uint8_t size)
 #endif
 }
 
-void beacon_tone(int32_t hz, int32_t len)
+void beacon_tone(int32_t hz, int32_t len, uint8_t which) //duration is in seconds.
 {
-  uint32_t start = millis();
   int32_t d = 500000 / hz;
 
   if (d < 100) {
     d = 100;
   }
 
+  selectRFM(which);
+
+  configureSPIBitBang();
+
+  len *= 1000;
+  uint32_t start = millis();
   while ((millis()-start) < len) {
-    //  SDI_on;
+    GPIO_SetBits(GPIOB, PIN_MOSI);
     delayMicroseconds(d);
-    // SDI_off;
+    GPIO_ResetBits(GPIOB, PIN_MOSI);
     delayMicroseconds(d);
   }
+
+  configureSPI();
+
+  selectRFM(0);
+
 }
 
 void beacon_send(uint8_t unit)
@@ -262,22 +272,35 @@ void beacon_send(uint8_t unit)
   rfmWriteRegister(unit, 0x73, 0x00);
   rfmWriteRegister(unit, 0x74, 0x00);    // no offset
 
-  rfmSetCarrierFrequency(unit, bind_data.beacon_frequency);
+  rfmSetCarrierFrequency(unit, rx_config.beacon_frequency);
 
   rfmWriteRegister(unit, 0x6d, 0x07);   // 7 set max power 100mW
 
   delay(10);
   rfmWriteRegister(unit, 0x07, RF22B_PWRSTATE_TX);    // to tx mode
   delay(10);
-  beacon_tone(500, 1);
 
-  rfmWriteRegister(unit, 0x6d, 0x04);   // 4 set mid power 15mW
-  delay(10);
-  beacon_tone(250, 1);
+  //close encounters tune
+  //  G, A, F, F(lower octave), C
+  //octave 3:  392  440  349  175   261
 
-  rfmWriteRegister(unit, 0x6d, 0x00);   // 0 set min power 1mW
+  beacon_tone(392, 1, 1);
+
+  rfmWriteRegister(unit, 0x6d, 0x05);   // 5 set mid power 25mW
   delay(10);
-  beacon_tone(160, 1);
+  beacon_tone(440,1, 1);
+
+  rfmWriteRegister(unit, 0x6d, 0x04);   // 4 set mid power 13mW
+  delay(10);
+  beacon_tone(349, 1, 1);
+
+  rfmWriteRegister(unit, 0x6d, 0x02);   // 2 set min power 3mW
+  delay(10);
+  beacon_tone(175,1, 1);
+
+  rfmWriteRegister(unit, 0x6d, 0x00);   // 0 set min power 1.3mW
+  delay(10);
+  beacon_tone(261, 2, 1);
 
   rfmWriteRegister(unit, 0x07, RF22B_PWRSTATE_READY);
   LEDG_OFF
@@ -302,7 +325,7 @@ int8_t rfmCheckInt(uint8_t unit)
   if ((unit==1)||(unit==2)) {
     if (rfmIntFired[unit-1]) {
       rfmIntFired[unit-1]=0;
-      printf("%d\r\n",unit);
+      //printf("%d\r\n",unit);
       return 1;
     }
   }
