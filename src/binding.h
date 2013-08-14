@@ -1,4 +1,7 @@
+#pragma once
 // OpenLRSng binding
+
+
 
 // Factory setting values, modify via the CLI
 
@@ -21,12 +24,11 @@
 //  0 -- 4800bps, best range
 //  1 -- 9600bps, medium range
 //  2 -- 19200bps, medium range
-#define DEFAULT_DATARATE 0
+#define DEFAULT_DATARATE 2
 
-// FLAGS: 8bits |4 bit reserved|1bit telemetry enable|3bit channel config|
+// BIND FLAGS
 #define TELEMETRY_ENABLED 0x08
-#define FAILSAFE_FAST     0x10
-#define FAILSAFE_NOPPM    0x20
+#define FRSKY_ENABLED     0x10
 #define CHANNELS_4_4  1
 #define CHANNELS_8    2
 #define CHANNELS_8_4  3
@@ -34,6 +36,11 @@
 #define CHANNELS_12_4 5
 #define CHANNELS_16   6
 
+// RX flags
+#define FAILSAFE_NOPPM    0x01
+#define FAILSAFE_NOPWM    0x02
+#define PPM_MAX_8CH       0x04
+#define ALWAYS_BIND       0x08
 
 #define DEFAULT_FLAGS CHANNELS_8
 
@@ -47,10 +54,17 @@
 #define DEFAULT_BEACON_DEADTIME 30 // time to wait until go into beacon mode (s)
 #define DEFAULT_BEACON_INTERVAL 10 // interval between beacon transmits (s)
 
-#define BINDING_POWER     0x00 // 1 mW
-#define BINDING_VERSION   3
+#define MIN_DEADTIME 10
+#define MAX_DEADTIME 255
 
-#define EEPROM_OFFSET     0x00
+#define MIN_INTERVAL 5
+#define MAX_INTERVAL 255
+
+#define BINDING_POWER     0x00 // 1 mW
+#define BINDING_VERSION   7
+
+//#define EEPROM_OFFSET     0x00
+//#define EEPROM_RX_OFFSET  0x40 // RX specific config struct
 
 #define TELEMETRY_PACKETSIZE 9
 
@@ -76,21 +90,19 @@ extern uint8_t default_hop_list[];
 #  define BINDING_FREQUENCY 435000000 // Hz
 #endif
 
+#define MAXHOPS 24
 
 struct __attribute__((__packed__)) bind_data {
-  uint8_t version;
-  uint32_t rf_frequency;
-  uint32_t rf_magic;
-  uint8_t rf_power;
-  uint8_t hopcount;
-  uint8_t rf_channel_spacing;
-  uint8_t hopchannel[8];
-  uint8_t modem_params;
-  uint8_t flags;
-  uint32_t beacon_frequency;
-  uint8_t beacon_interval;
-  uint8_t beacon_deadtime;
-};
+	  uint8_t version;
+	  uint32_t serial_baudrate;
+	  uint32_t rf_frequency;
+	  uint32_t rf_magic;
+	  uint8_t rf_power;
+	  uint8_t rf_channel_spacing;
+	  uint8_t hopchannel[MAXHOPS];
+	  uint8_t modem_params;
+	  uint8_t flags;
+	};
 
 extern struct bind_data bind_data;
 
@@ -106,11 +118,37 @@ extern struct rfm22_modem_regs modem_params[];
 
 extern struct rfm22_modem_regs bind_params;
 
+#define PINMAP_PPM  0x20
+#define PINMAP_RSSI 0x21
+#define PINMAP_SDA  0x22
+#define PINMAP_SCL  0x23
+#define PINMAP_RXD  0x24
+#define PINMAP_TXD  0x25
+#define PINMAP_ANALOG 0x26
+
+struct __attribute__((__packed__)) rx_config {
+  uint8_t  rx_type; // RX type filled in by RX, do not change
+  uint8_t  pinMapping[13];
+  uint8_t  flags;
+  uint8_t  RSSIpwm;
+  uint32_t beacon_frequency;
+  uint16_t  beacon_deadtime;
+  uint8_t  beacon_interval;
+  uint16_t minsync;
+  uint8_t  failsafe_delay;
+};
+
+extern struct rx_config rx_config;
+
 uint8_t getPacketSize();
 uint8_t getChannelCount();
 uint32_t getInterval();
 int16_t bindReadEeprom();
 void bindWriteEeprom(void);
 void bindInitDefaults(void);
-
+void bindRandomize(void);
+void rxInitDefaults();
+void rxWriteEeprom();
+void rxReadEeprom();
+void printRXconf();
 

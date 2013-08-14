@@ -33,7 +33,8 @@ uint32_t micros(void)
         ms = sysTickUptime;
         cycle_cnt = SysTick->VAL;
     } while (ms != sysTickUptime);
-    return (ms * 1000) + (72000 - cycle_cnt) / 72;
+    return (ms * 1000) + ((SystemCoreClock/1000) - cycle_cnt) / (SystemCoreClock/1000000);
+    //return (ms * 1000) + (72000 - cycle_cnt) / 72; //TODO: fix this for 80mhz (sysclk?) i think this works now
 }
 
 // Return system uptime in milliseconds (rollover in 49 days)
