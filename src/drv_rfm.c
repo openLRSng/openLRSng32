@@ -111,7 +111,12 @@ void init_rfm(uint8_t unit, uint8_t isbind)
   setModemRegs(unit, isbind?&bind_params:&modem_params[bind_data.modem_params]);
 
   // Packet settings
+#ifdef USE_ECC
+  rfmWriteRegister(unit, 0x30, 0x88);    // enable packet handler, msb first, disable crc,
+#else
   rfmWriteRegister(unit, 0x30, 0x8c);    // enable packet handler, msb first, enable crc,
+#endif
+
   rfmWriteRegister(unit, 0x32, 0x0f);    // no broadcast, check header bytes 3,2,1,0
   rfmWriteRegister(unit, 0x33, 0x42);    // 4 byte header, 2 byte synch, variable pkt size
   rfmWriteRegister(unit, 0x34, 0x0a);    // 10 nibbles (40 bit preamble)
@@ -212,8 +217,7 @@ void tx_packet(uint8_t unit, uint8_t* pkt, uint8_t size)
 
 
 #ifdef TX_TIMING
-  Serial.print("TX took:");
-  Serial.println(micros() - tx_start);
+  printf("TX took: %d\r\n",(micros() - tx_start));
 #endif
 }
 

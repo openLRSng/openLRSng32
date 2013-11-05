@@ -59,7 +59,7 @@ static pwmHardware_t timerHardware[] = {
 	{ TIM3, GPIOA, GPIO_Pin_7, TIM_Channel_2, TIM3_IRQn, 0, },          // PWM6
 	{ TIM3, GPIOB, GPIO_Pin_0, TIM_Channel_3, TIM3_IRQn, 0, },          // PWM7
 	{ TIM3, GPIOB, GPIO_Pin_1, TIM_Channel_4, TIM3_IRQn, 0, },          // PWM8
-	{ TIM4, GPIOB, GPIO_Pin_9, TIM_Channel_4, TIM4_IRQn, 0, },          // PWM9
+	{ TIM4, GPIOB, GPIO_Pin_9, TIM_Channel_4, TIM4_IRQn, 0, },          // PWM9 RSSI
     { TIM1, GPIOA, GPIO_Pin_8, TIM_Channel_1, TIM1_CC_IRQn, 1, },       // PPM
 };
 #endif
@@ -82,6 +82,18 @@ static void rssiTimeBase(TIM_TypeDef *tim)
 
     TIM_TimeBaseStructInit(&TIM_TimeBaseStructure);
     TIM_TimeBaseStructure.TIM_Period = 255; //31kHz
+    TIM_TimeBaseStructure.TIM_Prescaler = (SystemCoreClock / 8000000) - 1; // 8MHz timer
+    TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+    TIM_TimeBaseInit(tim, &TIM_TimeBaseStructure);
+}
+
+static void lbeepTimeBase(TIM_TypeDef *tim)
+{
+    TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
+
+    TIM_TimeBaseStructInit(&TIM_TimeBaseStructure);
+    TIM_TimeBaseStructure.TIM_Period = 8000; //1kHz
     TIM_TimeBaseStructure.TIM_Prescaler = (SystemCoreClock / 8000000) - 1; // 8MHz timer
     TIM_TimeBaseStructure.TIM_ClockDivision = 0;
     TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
@@ -258,6 +270,38 @@ void configureRssiPWM(void)
 	pwmGPIOConfig(timerHardware[RSSI_PIN].gpio, timerHardware[RSSI_PIN].pin);
 	pwmOCConfig(timerHardware[RSSI_PIN].tim, timerHardware[RSSI_PIN].channel, 0, 0);
 	TIM_Cmd(timerHardware[RSSI_PIN].tim, ENABLE);
+}
+
+void configureLbeepPWM(void)
+{
+        //GPIO_PinRemapConfig(GPIO_PartialRemap_TIM3, DISABLE);
+        //GPIO_PinRemapConfig(GPIO_FullRemap_TIM3, DISABLE);
+        lbeepTimeBase(timerHardware[RSSI_PIN].tim);
+        pwmGPIOConfig(timerHardware[RSSI_PIN].gpio, timerHardware[RSSI_PIN].pin);
+        pwmOCConfig(timerHardware[RSSI_PIN].tim, timerHardware[RSSI_PIN].channel, 0, 0);
+        switch (timerHardware[RSSI_PIN].channel) {
+                  case TIM_Channel_1:
+                      timerHardware[RSSI_PIN].tim->CCR1 = 4000;
+                      break;
+                    case TIM_Channel_2:
+                      timerHardware[RSSI_PIN].tim->CCR2 = 4000;
+                      break;
+                    case TIM_Channel_3:
+                      timerHardware[RSSI_PIN].tim->CCR3 = 4000;
+                      break;
+                    case TIM_Channel_4:
+                      timerHardware[RSSI_PIN].tim->CCR4 = 4000;
+                      break;
+        }
+}
+
+void enableLbeep(bool enable)
+{
+  if(enable) {
+      TIM_Cmd(timerHardware[RSSI_PIN].tim, ENABLE);
+  } else {
+      TIM_Cmd(timerHardware[RSSI_PIN].tim, DISABLE);
+  }
 }
 
 void set_RSSI_output(uint8_t rssi)

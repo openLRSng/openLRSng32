@@ -11,7 +11,7 @@ uint32_t SystemCoreClock         = SYSCLK_FREQ_72MHz;        /*!< System Clock F
 
 __I uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
 
-static void SetSysClock(void);
+void SetSysClock(void);
 
 /**
   * @brief  Setup the microcontroller system
@@ -143,7 +143,7 @@ void SystemCoreClockUpdate (void)
 }
 
 // Set system clock to 72 (HSE) or 64 (HSI) MHz
-static void SetSysClock(void)
+void SetSysClock(void)
 {
   __IO uint32_t StartUpCounter = 0, HSEStatus = 0, HSIStatus = 0;
   

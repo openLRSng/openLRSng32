@@ -41,6 +41,7 @@
 #define FAILSAFE_NOPWM    0x02
 #define PPM_MAX_8CH       0x04
 #define ALWAYS_BIND       0x08
+#define SLAVE_MODE        0x80
 
 #define DEFAULT_FLAGS CHANNELS_8
 
@@ -55,7 +56,7 @@
 #define DEFAULT_BEACON_INTERVAL 10 // interval between beacon transmits (s)
 
 #define MIN_DEADTIME 10
-#define MAX_DEADTIME 255
+#define MAX_DEADTIME 65535
 
 #define MIN_INTERVAL 5
 #define MAX_INTERVAL 255
@@ -125,6 +126,7 @@ extern struct rfm22_modem_regs bind_params;
 #define PINMAP_RXD  0x24
 #define PINMAP_TXD  0x25
 #define PINMAP_ANALOG 0x26
+#define PINMAP_LBEEP  0x27
 
 struct __attribute__((__packed__)) rx_config {
   uint8_t  rx_type; // RX type filled in by RX, do not change

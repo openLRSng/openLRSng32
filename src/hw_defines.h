@@ -9,11 +9,8 @@
 
 //*******************************
 //  SELECT HARDWARE HERE
-//*******************************
 //set this to the hardware type you are compiling for
 #define BOARD_TYPE DTFUHF10CH //DTF UHF 10ch
-//*******************************
-//  SELECT HARDWARE HERE
 //*******************************
 
 

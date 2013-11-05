@@ -55,7 +55,9 @@ void systemInit(void)
     uint32_t i;
 
     // This is needed because some shit inside Keil startup fucks with SystemCoreClock, setting it back to 72MHz even on HSI.
+    // TODO this
     SystemCoreClockUpdate();
+    //SetSysClock();
 
     // Turn on clocks for stuff we use
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2 | RCC_APB1Periph_TIM3 | RCC_APB1Periph_TIM4 | RCC_APB1Periph_I2C2 | RCC_APB1Periph_SPI2, ENABLE);

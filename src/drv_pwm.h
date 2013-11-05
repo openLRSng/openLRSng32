@@ -6,4 +6,6 @@ void enablePWMout(uint8_t ch, bool enable, bool polarity);
 void configureServoPWM(uint8_t);
 void configurePPM(uint8_t);
 void configureRssiPWM(void);
+void configureLbeepPWM(void);
+void enableLbeep(bool enable);
 void set_RSSI_output(uint8_t);

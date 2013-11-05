@@ -1,4 +1,7 @@
 #include "board.h"
+#ifdef USE_ECC
+#include "rscombo.h"
+#endif
 
 static void
 _putc(void *p, char c)
@@ -345,8 +348,14 @@ uint8_t lostpack = 0;
 
 bool willhop = 0, fs_saved = 0;
 
-void
-save_failsafe_values(void)
+void updateLbeep(bool enable)
+{
+  if (rx_config.pinMapping[RSSI_PIN] == PINMAP_LBEEP) {
+      enableLbeep(enable);
+  }
+}
+
+void save_failsafe_values(void)
 {
   FLASH_Status status;
   uint32_t i;
@@ -400,8 +409,7 @@ bindReceive(uint32_t timeout)
   uint8_t rxb;
   init_rfm(1, 1);
   to_rx_mode(1);
-  LEDR_ON
-  ;
+  LEDR_ON;
   printf("Waiting bind\r\n");
 
   while ((!timeout) || ((millis() - start) < timeout))
@@ -419,8 +427,7 @@ bindReceive(uint32_t timeout)
                   printf("data good\r\n");
                   rxb = 'B';
                   tx_packet(1, &rxb, 1); // ACK that we got bound
-                  LEDG_ON
-                  ; //signal we got bound on LED:s
+                  LEDG_ON; //signal we got bound on LED:s
                   //          if (timeout) {
                   return 1;
                   //          }
@@ -462,6 +469,9 @@ bindReceive(uint32_t timeout)
 
 uint8_t hopcount;
 uint8_t rx_buf[21]; // RX buffer
+#ifdef USE_ECC
+uint8_t rx_ecc_buf[21+NPAR];
+#endif
 
 //############ MAIN LOOP ##############
 void
@@ -492,7 +502,24 @@ loop()
       LEDG_ON
       ;
 
+      updateLbeep(false);
+
+#ifdef USE_ECC
+      rfmReceive(rfmRXed, rx_ecc_buf, getPacketSize()+NPAR);
+      printf("rxd\r\n");
+      //printf(rx_ecc_buf);
+      if (rs_decode_data(rx_ecc_buf, getPacketSize()+NPAR))
+      {
+          printf("correcting\r\n");
+          rs_correct_errors_erasures (rx_ecc_buf,(getPacketSize()+NPAR),NULL,NULL);
+      } else {
+          printf("not fixable\r\n");
+      }
+
+      memcpy(rx_buf,rx_ecc_buf,getPacketSize());
+#else
       rfmReceive(rfmRXed, rx_buf, getPacketSize());
+#endif
 
       if ((rx_buf[0] & 0x3e) == 0x00) //servo data
         {
@@ -519,19 +546,25 @@ loop()
             {
               if ((rx_config.pinMapping[i] == PINMAP_PPM) & (i == PPM_PIN))
                 {
-                  printf("config ppm chan %d\r\n", i);
+                  printf("config ppm port %d\r\n", i);
                   configurePPM(ppmChannels);
                 }
               else if ((rx_config.pinMapping[i] == PINMAP_RSSI)
                   & (i == RSSI_PIN))
                 {
-                  printf("config rssi chan %d\r\n", i);
+                  printf("config rssi port %d\r\n", i);
                   configureRssiPWM();
+                }
+              else if ((rx_config.pinMapping[i] == PINMAP_LBEEP)
+                  & (i == RSSI_PIN))
+                {
+                  printf("config lbeep port %d\r\n", i);
+                  configureLbeepPWM();
                 }
               else
                 {
                   //config regular pwm/servo-rssi
-                  printf("config pwm chan %d\r\n", i);
+                  printf("config pwm port %d\r\n", i);
                   configureServoPWM(i);
                 }
             }
@@ -562,12 +595,12 @@ loop()
           // reply with telemetry
           uint8_t telemetry_packet[4];
           telemetry_packet[0] = last_rssi_value;
-          rx_ready((rfmRXed == 1) ? 2 : 1); // shutdown other module
+          //rx_ready((rfmRXed == 1) ? 2 : 1); // shutdown other module
           tx_packet(rfmRXed, telemetry_packet, 4);
         }
 
       rx_reset(1);
-      rx_reset(2);
+      //rx_reset(2);
 
       willhop = 1;
 
@@ -659,6 +692,7 @@ loop()
           ;
           LEDG_OFF
           ;
+          updateLbeep(true);
           if (smoothRSSI > 30)
             {
               smoothRSSI -= 30;
@@ -766,7 +800,7 @@ main(void)
   //    scannerMode();
   //  }
 
-  //TODO: bind mode on jumper
+  //TODO: bind mode on jumper, port 1+2
 
   if (bindReadEeprom())
     {
