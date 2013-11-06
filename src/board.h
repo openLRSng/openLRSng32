@@ -59,6 +59,7 @@
 #define FLASH_RXWRITE_ADDR (0x08000000 + (uint32_t)FLASH_PAGE_SIZE * (FLASH_PAGE_COUNT - 3))
 
 #include "drv_system.h"         // timers, delays, etc
+#include "drv_adc.h"
 #include "drv_uart.h"
 #include "drv_pwm.h"
 #include "drv_spi.h"

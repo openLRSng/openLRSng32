@@ -22,6 +22,10 @@ typedef struct {
     uint8_t outputEnable;
 } pinDefine_t;
 
+typedef struct {
+    uint8_t channel;
+} adcDefine_t;
+
 #if BOARD_TYPE == DTFUHF10CH
 //PPM_PIN is the only pin connected to timer1. timerHardware[12]
 //RSSI_PIN must be the only pin connected to its timer. timerHardware[8]
@@ -34,10 +38,16 @@ enum BOARD_PINMAP {
 	CH6_PIN,
 	CH7_PIN,
 	CH8_PIN,
-	RSSI_PIN,
-	PPM_PIN,
+	CH9_PIN,
+	CH10_PIN,
 	MAX_OUTPUTS
 };
+
+//special pins def
+static const uint8_t ANALOG0_PIN = CH7_PIN;
+static const uint8_t ANALOG1_PIN = CH8_PIN;
+static const uint8_t RSSI_PIN = CH9_PIN;
+static const uint8_t PPM_PIN = CH10_PIN;
 
 static pinDefine_t pinDefine[] = {
         { TIM2, GPIOA, GPIO_Pin_0, TIM_Channel_1, TIM2_IRQn, 0, },          // PWM1 ADC12_IN0
@@ -49,7 +59,12 @@ static pinDefine_t pinDefine[] = {
         { TIM3, GPIOB, GPIO_Pin_0, TIM_Channel_3, TIM3_IRQn, 0, },          // PWM7 ADC12_IN8
         { TIM3, GPIOB, GPIO_Pin_1, TIM_Channel_4, TIM3_IRQn, 0, },          // PWM8 ADC12_IN9
         { TIM4, GPIOB, GPIO_Pin_9, TIM_Channel_4, TIM4_IRQn, 0, },          // PWM9 RSSI
-    { TIM1, GPIOA, GPIO_Pin_8, TIM_Channel_1, TIM1_CC_IRQn, 1, },       // PPM
+        { TIM1, GPIOA, GPIO_Pin_8, TIM_Channel_1, TIM1_CC_IRQn, 1, },       // PPM
+};
+
+static adcDefine_t adcDefine[] = {
+        { ADC_Channel_8, },
+        { ADC_Channel_9, },
 };
 
 #endif
