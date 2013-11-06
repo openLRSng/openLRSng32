@@ -65,5 +65,6 @@
 #include "drv_spi.h"
 #include "drv_i2c.h"
 #include "drv_rfm.h"
+#include "drv_gpio.h"
 #include "drv_mpu6050.h"
 #include "binding.h"

@@ -1,4 +1,3 @@
-#pragma once
 #include "board.h"
 
 struct flash_head {

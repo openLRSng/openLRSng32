@@ -38,8 +38,11 @@ COMMON_SRC	 = startup_stm32f10x_md_gcc.S \
 		   drv_i2c.c \
 		   drv_mpu6050.c \
 		   drv_rfm.c \
+	  	   drv_adc.c \
+		   drv_gpio.c \
 		   binding.c \
 		   printf.c \
+		   hw_defines.c \
 		   $(CMSIS_SRC) \
 		   $(STDPERIPH_SRC)
 
@@ -134,11 +137,11 @@ $(OBJECT_DIR)/%.o: %.c
 $(OBJECT_DIR)/%.o: %.s
 	@mkdir -p $(dir $@)
 	@echo %% $(notdir $<)
-	@$(CC) -c -o $@ $(ASFLAGS) $< 
+	@$(CC) -c -o $@ $(ASFLAGS) $<
 $(OBJECT_DIR)/%.o): %.S
 	@mkdir -p $(dir $@)
 	@echo %% $(notdir $<)
-	@$(CC) -c -o $@ $(ASFLAGS) $< 
+	@$(CC) -c -o $@ $(ASFLAGS) $<
 
 clean:
 	rm -f $(TARGET_HEX) $(TARGET_ELF) $(TARGET_OBJS)

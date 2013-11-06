@@ -1,4 +1,3 @@
-#pragma once
 #include "board.h"
 
 // static volatile uint16_t adc1Ch4Value = 0;
