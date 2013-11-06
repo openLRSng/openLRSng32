@@ -140,6 +140,7 @@ void bindWriteEeprom(void)
 void bindInitDefaults(void)
 {
   bind_data.version = BINDING_VERSION;
+  bind_data.serial_baudrate = DEFAULT_BAUDRATE;
   bind_data.rf_power = DEFAULT_RF_POWER;
   bind_data.rf_frequency = DEFAULT_CARRIER_FREQUENCY;
   bind_data.rf_channel_spacing = DEFAULT_CHANNEL_SPACING;

@@ -1,5 +1,5 @@
 #pragma once
-
+#include "board.h"
 
 #define RX_FLYTRON8CH 0x01
 #define RX_OLRSNG4CH  0x02
@@ -13,6 +13,14 @@
 #define BOARD_TYPE DTFUHF10CH //DTF UHF 10ch
 //*******************************
 
+typedef struct {
+    TIM_TypeDef *tim;
+    GPIO_TypeDef *gpio;
+    uint32_t pin;
+    uint8_t channel;
+    uint8_t irq;
+    uint8_t outputEnable;
+} pinDefine_t;
 
 #if BOARD_TYPE == DTFUHF10CH
 //PPM_PIN is the only pin connected to timer1. timerHardware[12]
@@ -31,6 +39,17 @@ enum BOARD_PINMAP {
 	MAX_OUTPUTS
 };
 
-
+static pinDefine_t pinDefine[] = {
+        { TIM2, GPIOA, GPIO_Pin_0, TIM_Channel_1, TIM2_IRQn, 0, },          // PWM1 ADC12_IN0
+        { TIM2, GPIOA, GPIO_Pin_1, TIM_Channel_2, TIM2_IRQn, 0, },          // PWM2 ADC12_IN1
+        { TIM2, GPIOA, GPIO_Pin_2, TIM_Channel_3, TIM2_IRQn, 0, },          // PWM3 ADC12_IN2
+        { TIM2, GPIOA, GPIO_Pin_3, TIM_Channel_4, TIM2_IRQn, 0, },          // PWM4 ADC12_IN3
+        { TIM3, GPIOA, GPIO_Pin_6, TIM_Channel_1, TIM3_IRQn, 0, },          // PWM5 ADC12_IN6
+        { TIM3, GPIOA, GPIO_Pin_7, TIM_Channel_2, TIM3_IRQn, 0, },          // PWM6 ADC12_IN7
+        { TIM3, GPIOB, GPIO_Pin_0, TIM_Channel_3, TIM3_IRQn, 0, },          // PWM7 ADC12_IN8
+        { TIM3, GPIOB, GPIO_Pin_1, TIM_Channel_4, TIM3_IRQn, 0, },          // PWM8 ADC12_IN9
+        { TIM4, GPIOB, GPIO_Pin_9, TIM_Channel_4, TIM4_IRQn, 0, },          // PWM9 RSSI
+    { TIM1, GPIOA, GPIO_Pin_8, TIM_Channel_1, TIM1_CC_IRQn, 1, },       // PPM
+};
 
 #endif

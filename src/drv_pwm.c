@@ -1,68 +1,9 @@
 #include "board.h"
 
-
-/* RX32 PWM lauyout
-    PWM1  PA0 TIM2_CH1
-    PWM2  PA1 TIM2_CH2
-    PWM3  PA2 TIM2_CH3
-    PWM4  PA3 TIM2_CH4
-    PWM5  PA6 TIM3_CH1
-    PWM6  PA7 TIM3_CH2
-    PWM7  PB0 TIM3_CH3
-    PWM8  PB1 TIM3_CH4
-    PWM9  PB9 TIM4_CH4
-    PWM10 PB8 TIM4_CH3
-    PWM11 PB7 TIM4_CH2
-    PWM12 PB6 TIM4_CH1
-    PPM   PA8 TIM1_CH1
-*/
-
-// This indexes into the read-only hardware definition structure in drv_pwm.c, as well as into pwmPorts[] structure with dynamic data.
-//enum {
-//  PWM1 =0,
-//  PWM2,
-//  PWM3,
-//  PWM4,
-//  PWM5,
-//  PWM6,
-//  PWM7,
-//  PWM8,
-//  PWM9,
-//  PWM10,
-//  PWM11,
-//  PWM12,
-//  PPM,
-//  MAX_PORTS
-//};
-
-typedef struct {
-    TIM_TypeDef *tim;
-    GPIO_TypeDef *gpio;
-    uint32_t pin;
-    uint8_t channel;
-    uint8_t irq;
-    uint8_t outputEnable;
-} pwmHardware_t;
-
 volatile uint16_t PPMout[16]; // 12PWM upto 16 PPM
 volatile uint16_t PPMsync;
 volatile uint8_t  PPMch=0;
 static uint16_t activeChannels = 16;
-
-#if BOARD_TYPE == DTFUHF10CH
-static pwmHardware_t timerHardware[] = {
-	{ TIM2, GPIOA, GPIO_Pin_0, TIM_Channel_1, TIM2_IRQn, 0, },          // PWM1
-	{ TIM2, GPIOA, GPIO_Pin_1, TIM_Channel_2, TIM2_IRQn, 0, },          // PWM2
-	{ TIM2, GPIOA, GPIO_Pin_2, TIM_Channel_3, TIM2_IRQn, 0, },          // PWM3
-	{ TIM2, GPIOA, GPIO_Pin_3, TIM_Channel_4, TIM2_IRQn, 0, },          // PWM4
-	{ TIM3, GPIOA, GPIO_Pin_6, TIM_Channel_1, TIM3_IRQn, 0, },          // PWM5
-	{ TIM3, GPIOA, GPIO_Pin_7, TIM_Channel_2, TIM3_IRQn, 0, },          // PWM6
-	{ TIM3, GPIOB, GPIO_Pin_0, TIM_Channel_3, TIM3_IRQn, 0, },          // PWM7
-	{ TIM3, GPIOB, GPIO_Pin_1, TIM_Channel_4, TIM3_IRQn, 0, },          // PWM8
-	{ TIM4, GPIOB, GPIO_Pin_9, TIM_Channel_4, TIM4_IRQn, 0, },          // PWM9 RSSI
-    { TIM1, GPIOA, GPIO_Pin_8, TIM_Channel_1, TIM1_CC_IRQn, 1, },       // PPM
-};
-#endif
 
 static void pwmTimeBase(TIM_TypeDef *tim, uint32_t period)
 {
@@ -148,7 +89,7 @@ void enablePWMout(uint8_t ch, bool enable, bool polarity)
   GPIO_InitTypeDef GPIO_InitStructure;
   
   GPIO_StructInit(&GPIO_InitStructure);
-  GPIO_InitStructure.GPIO_Pin = timerHardware[ch].pin;
+  GPIO_InitStructure.GPIO_Pin = pinDefine[ch].pin;
   if (enable)
   {
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
@@ -157,12 +98,12 @@ void enablePWMout(uint8_t ch, bool enable, bool polarity)
   {
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
     if(polarity)
-      GPIO_SetBits(timerHardware[ch].gpio, timerHardware[ch].pin); //write the port high
+      GPIO_SetBits(pinDefine[ch].gpio, pinDefine[ch].pin); //write the port high
     else
-      GPIO_ResetBits(timerHardware[ch].gpio, timerHardware[ch].pin); //write the port low
+      GPIO_ResetBits(pinDefine[ch].gpio, pinDefine[ch].pin); //write the port low
   }
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_Init(timerHardware[ch].gpio, &GPIO_InitStructure);
+  GPIO_Init(pinDefine[ch].gpio, &GPIO_InitStructure);
 }
 
 void setPWM(uint8_t ch, uint16_t value)
@@ -174,19 +115,19 @@ void setPWM(uint8_t ch, uint16_t value)
   {
 	  if (rx_config.pinMapping[i] == ch)
 	  {
-		  switch (timerHardware[i].channel)
+		  switch (pinDefine[i].channel)
 		  {
 		  case TIM_Channel_1:
-			  timerHardware[i].tim->CCR1 = value;
+		    pinDefine[i].tim->CCR1 = value;
 			  break;
 		  case TIM_Channel_2:
-			  timerHardware[i].tim->CCR2 = value;
+		    pinDefine[i].tim->CCR2 = value;
 			  break;
 		  case TIM_Channel_3:
-			  timerHardware[i].tim->CCR3 = value;
+		    pinDefine[i].tim->CCR3 = value;
 			  break;
 		  case TIM_Channel_4:
-			  timerHardware[i].tim->CCR4 = value;
+		    pinDefine[i].tim->CCR4 = value;
   	      break;
 		  }
 	  }
@@ -213,7 +154,7 @@ void TIM1_CC_IRQHandler(void)
     if (PPMch<activeChannels)
     {
       uint16_t out = PPMout[PPMch++];
-      timerHardware[PPM_PIN].tim->ARR = out;
+      pinDefine[PPM_PIN].tim->ARR = out;
       PPMsync -= out;
       if (PPMsync < rx_config.minsync)
       {
@@ -222,7 +163,7 @@ void TIM1_CC_IRQHandler(void)
     }
     else
     {
-      timerHardware[PPM_PIN].tim->ARR = PPMsync;
+        pinDefine[PPM_PIN].tim->ARR = PPMsync;
       PPMch=0;
     }
   }
@@ -233,14 +174,14 @@ void configureServoPWM(uint8_t port)
 	// PWM outputs
 	//GPIO_PinRemapConfig(GPIO_PartialRemap_TIM3, DISABLE);
 	//GPIO_PinRemapConfig(GPIO_FullRemap_TIM3, DISABLE);
-	pwmTimeBase(timerHardware[port].tim, 20000);
-	pwmGPIOConfig(timerHardware[port].gpio, timerHardware[port].pin);
-	pwmOCConfig(timerHardware[port].tim, timerHardware[port].channel, 0, 0);
+	pwmTimeBase(pinDefine[port].tim, 20000);
+	pwmGPIOConfig(pinDefine[port].gpio, pinDefine[port].pin);
+	pwmOCConfig(pinDefine[port].tim, pinDefine[port].channel, 0, 0);
 	if(port == PPM_PIN)
 	{
-		TIM_CtrlPWMOutputs(timerHardware[PPM_PIN].tim, ENABLE); //needed only for timer1
+		TIM_CtrlPWMOutputs(pinDefine[PPM_PIN].tim, ENABLE); //needed only for timer1
 	}
-	TIM_Cmd(timerHardware[port].tim, ENABLE);
+	TIM_Cmd(pinDefine[port].tim, ENABLE);
  }
 
 void configurePPM(uint8_t ppmChannels)
@@ -252,45 +193,45 @@ void configurePPM(uint8_t ppmChannels)
 	PPMsync = rx_config.minsync + 300;
 	//GPIO_PinRemapConfig(GPIO_PartialRemap_TIM3, DISABLE);
 	//GPIO_PinRemapConfig(GPIO_FullRemap_TIM3, DISABLE);
-	pwmTimeBase(timerHardware[PPM_PIN].tim, 1000);
-	pwmGPIOConfig(timerHardware[PPM_PIN].gpio, timerHardware[PPM_PIN].pin);
-	pwmOCConfig(timerHardware[PPM_PIN].tim, timerHardware[PPM_PIN].channel, 300, 1);
-	pwmNVICConfig(timerHardware[PPM_PIN].irq);
-	TIM_ITConfig(timerHardware[PPM_PIN].tim, TIM_IT_CC1, ENABLE);
+	pwmTimeBase(pinDefine[PPM_PIN].tim, 1000);
+	pwmGPIOConfig(pinDefine[PPM_PIN].gpio, pinDefine[PPM_PIN].pin);
+	pwmOCConfig(pinDefine[PPM_PIN].tim, pinDefine[PPM_PIN].channel, 300, 1);
+	pwmNVICConfig(pinDefine[PPM_PIN].irq);
+	TIM_ITConfig(pinDefine[PPM_PIN].tim, TIM_IT_CC1, ENABLE);
 	// Needed only on TIM1
-	TIM_CtrlPWMOutputs(timerHardware[PPM_PIN].tim, ENABLE);
-	TIM_Cmd(timerHardware[PPM_PIN].tim, ENABLE);
+	TIM_CtrlPWMOutputs(pinDefine[PPM_PIN].tim, ENABLE);
+	TIM_Cmd(pinDefine[PPM_PIN].tim, ENABLE);
 }
 
 void configureRssiPWM(void)
 {
 	//GPIO_PinRemapConfig(GPIO_PartialRemap_TIM3, DISABLE);
 	//GPIO_PinRemapConfig(GPIO_FullRemap_TIM3, DISABLE);
-	rssiTimeBase(timerHardware[RSSI_PIN].tim);
-	pwmGPIOConfig(timerHardware[RSSI_PIN].gpio, timerHardware[RSSI_PIN].pin);
-	pwmOCConfig(timerHardware[RSSI_PIN].tim, timerHardware[RSSI_PIN].channel, 0, 0);
-	TIM_Cmd(timerHardware[RSSI_PIN].tim, ENABLE);
+	rssiTimeBase(pinDefine[RSSI_PIN].tim);
+	pwmGPIOConfig(pinDefine[RSSI_PIN].gpio, pinDefine[RSSI_PIN].pin);
+	pwmOCConfig(pinDefine[RSSI_PIN].tim, pinDefine[RSSI_PIN].channel, 0, 0);
+	TIM_Cmd(pinDefine[RSSI_PIN].tim, ENABLE);
 }
 
 void configureLbeepPWM(void)
 {
         //GPIO_PinRemapConfig(GPIO_PartialRemap_TIM3, DISABLE);
         //GPIO_PinRemapConfig(GPIO_FullRemap_TIM3, DISABLE);
-        lbeepTimeBase(timerHardware[RSSI_PIN].tim);
-        pwmGPIOConfig(timerHardware[RSSI_PIN].gpio, timerHardware[RSSI_PIN].pin);
-        pwmOCConfig(timerHardware[RSSI_PIN].tim, timerHardware[RSSI_PIN].channel, 0, 0);
-        switch (timerHardware[RSSI_PIN].channel) {
+        lbeepTimeBase(pinDefine[RSSI_PIN].tim);
+        pwmGPIOConfig(pinDefine[RSSI_PIN].gpio, pinDefine[RSSI_PIN].pin);
+        pwmOCConfig(pinDefine[RSSI_PIN].tim, pinDefine[RSSI_PIN].channel, 0, 0);
+        switch (pinDefine[RSSI_PIN].channel) {
                   case TIM_Channel_1:
-                      timerHardware[RSSI_PIN].tim->CCR1 = 4000;
+                    pinDefine[RSSI_PIN].tim->CCR1 = 4000;
                       break;
                     case TIM_Channel_2:
-                      timerHardware[RSSI_PIN].tim->CCR2 = 4000;
+                      pinDefine[RSSI_PIN].tim->CCR2 = 4000;
                       break;
                     case TIM_Channel_3:
-                      timerHardware[RSSI_PIN].tim->CCR3 = 4000;
+                      pinDefine[RSSI_PIN].tim->CCR3 = 4000;
                       break;
                     case TIM_Channel_4:
-                      timerHardware[RSSI_PIN].tim->CCR4 = 4000;
+                      pinDefine[RSSI_PIN].tim->CCR4 = 4000;
                       break;
         }
 }
@@ -298,9 +239,9 @@ void configureLbeepPWM(void)
 void enableLbeep(bool enable)
 {
   if(enable) {
-      TIM_Cmd(timerHardware[RSSI_PIN].tim, ENABLE);
+      TIM_Cmd(pinDefine[RSSI_PIN].tim, ENABLE);
   } else {
-      TIM_Cmd(timerHardware[RSSI_PIN].tim, DISABLE);
+      TIM_Cmd(pinDefine[RSSI_PIN].tim, DISABLE);
   }
 }
 
@@ -308,18 +249,18 @@ void set_RSSI_output(uint8_t rssi)
 {
 	if(rx_config.pinMapping[RSSI_PIN] == PINMAP_RSSI)
 	{
-	switch (timerHardware[RSSI_PIN].channel) {
+	switch (pinDefine[RSSI_PIN].channel) {
 	    case TIM_Channel_1:
-	      timerHardware[RSSI_PIN].tim->CCR1 = rssi;
+	      pinDefine[RSSI_PIN].tim->CCR1 = rssi;
 	      break;
 	    case TIM_Channel_2:
-	      timerHardware[RSSI_PIN].tim->CCR2 = rssi;
+	      pinDefine[RSSI_PIN].tim->CCR2 = rssi;
 	      break;
 	    case TIM_Channel_3:
-	      timerHardware[RSSI_PIN].tim->CCR3 = rssi;
+	      pinDefine[RSSI_PIN].tim->CCR3 = rssi;
 	      break;
 	    case TIM_Channel_4:
-	      timerHardware[RSSI_PIN].tim->CCR4 = rssi;
+	      pinDefine[RSSI_PIN].tim->CCR4 = rssi;
 	      break;
 	    }
 	}

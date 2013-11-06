@@ -2,6 +2,7 @@
 
 void rfmSetChannel(uint8_t unit, uint8_t ch);
 uint8_t rfmGetRSSI(uint8_t unit);
+uint16_t rfmGetAFCC(uint8_t unit);
 void rfmSetCarrierFrequency(uint8_t unit, uint32_t f);
 void init_rfm(uint8_t unit, uint8_t isbind);
 void to_rx_mode(uint8_t unit);

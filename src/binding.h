@@ -26,6 +26,8 @@
 //  2 -- 19200bps, medium range
 #define DEFAULT_DATARATE 2
 
+#define DEFAULT_BAUDRATE 115200
+
 // BIND FLAGS
 #define TELEMETRY_ENABLED 0x08
 #define FRSKY_ENABLED     0x10

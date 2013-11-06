@@ -334,6 +334,7 @@ uint8_t RSSI_count = 0;
 uint16_t RSSI_sum = 0;
 uint8_t last_rssi_value = 0;
 uint8_t smoothRSSI = 0;
+uint16_t last_afcc_value = 0;
 
 uint16_t ppmSync = 40000;
 uint8_t ppmChannels = 16;
@@ -347,6 +348,11 @@ uint8_t firstpack = 0;
 uint8_t lostpack = 0;
 
 bool willhop = 0, fs_saved = 0;
+
+#define SERIAL_BUFSIZE 32
+uint8_t serial_buffer[SERIAL_BUFSIZE];
+uint8_t serial_head;
+uint8_t serial_tail;
 
 void updateLbeep(bool enable)
 {
@@ -383,8 +389,7 @@ void save_failsafe_values(void)
   FLASH_Lock();
 }
 
-void
-load_failsafe_values(void)
+void load_failsafe_values(void)
 {
   uint32_t * tempb = (uint32_t *) FLASH_FSWRITE_ADDR;
 
@@ -402,8 +407,7 @@ load_failsafe_values(void)
     }
 }
 
-uint8_t
-bindReceive(uint32_t timeout)
+uint8_t bindReceive(uint32_t timeout)
 {
   uint32_t start = millis();
   uint8_t rxb;
@@ -467,8 +471,18 @@ bindReceive(uint32_t timeout)
   return 0;
 }
 
+
 uint8_t hopcount;
-uint8_t rx_buf[21]; // RX buffer
+uint8_t rx_buf[21]; // RX buffer (uplink)
+// First byte of RX buf is
+// MSB..LSB [1bit uplink seqno.] [1bit downlink seqno] [6bits type)
+// type 0x00 normal servo, 0x01 failsafe set
+// type 0x38..0x3f uplinkked serial data
+uint8_t tx_buf[9]; // TX buffer (downlink)(type plus 8 x data)
+// First byte is meta
+// MSB..LSB [1 bit uplink seq] [1bit downlink seqno] [6b telemtype]
+// 0x00 link info [RSSI] [AFCC]*2 etc...
+// type 0x38-0x3f downlink serial data 1-8 bytes
 #ifdef USE_ECC
 uint8_t rx_ecc_buf[21+NPAR];
 #endif
@@ -521,6 +535,8 @@ loop()
       rfmReceive(rfmRXed, rx_buf, getPacketSize());
 #endif
 
+      last_afcc_value = rfmGetAFCC(1);
+
       if ((rx_buf[0] & 0x3e) == 0x00) //servo data
         {
           uint8_t i;
@@ -534,7 +550,32 @@ loop()
               else
                 setPWM(i, servoBits2Us(PPM[rx_config.pinMapping[i]]));
             }
-        }
+          if (rx_buf[0] & 0x01) //failsafe data
+            {
+              if (!fs_saved)
+                {
+                  save_failsafe_values();
+                  fs_saved = 1;
+                }
+            }
+          else if (fs_saved)
+            {
+              fs_saved = 0;
+            }
+        } else {
+            // something else than servo data...
+            if ((rx_buf[0] & 0x38) == 0x38) {
+              if ((rx_buf[0] ^ tx_buf[0]) & 0x80) {
+                // We got new data... (not retransmission)
+                uint8_t i;
+                tx_buf[0] ^= 0x80; // signal that we got it
+                for (i=0; i <= (rx_buf[0]&7);) {
+                  i++;
+                  uartWrite(rx_buf[i]);
+                }
+              }
+            }
+          }
 
       if (firstpack == 0)
         {
@@ -575,29 +616,47 @@ loop()
           disablePPM = 0;
         }
 
-      if (rx_buf[0] & 0x01)
-        {
-          if (!fs_saved)
-            {
-              save_failsafe_values();
-              fs_saved = 1;
-            }
-        }
-      else if (fs_saved)
-        {
-          fs_saved = 0;
-        }
-
       rfm1 = rfmCheckInt(1);
       rfm2 = rfmCheckInt(2);
-      if (bind_data.flags & TELEMETRY_ENABLED)
-        {
-          // reply with telemetry
-          uint8_t telemetry_packet[4];
-          telemetry_packet[0] = last_rssi_value;
-          //rx_ready((rfmRXed == 1) ? 2 : 1); // shutdown other module
-          tx_packet(rfmRXed, telemetry_packet, 4);
+      if (bind_data.flags & TELEMETRY_ENABLED) {
+        if ((tx_buf[0] ^ rx_buf[0]) & 0x40) {
+          // resend last message
+        } else {
+          tx_buf[0] &= 0xc0;
+          tx_buf[0] ^= 0x40; // swap sequence as we have new data
+          if (serial_head!=serial_tail) {
+            uint8_t bytes=0;
+            while ((bytes<8) && (serial_head!=serial_tail)) {
+              bytes++;
+              tx_buf[bytes]=serial_buffer[serial_head];
+              serial_head=(serial_head + 1) % SERIAL_BUFSIZE;
+            }
+            tx_buf[0] |= (0x37 + bytes);
+          } else {
+            // tx_buf[0] lowest 6 bits left at 0
+            tx_buf[1] = last_rssi_value;
+            //TODO: add this :)
+//            if (rx_config.pinMapping[ANALOG0_OUTPUT] == PINMAP_ANALOG) {
+//                tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT])>>2;
+//            } else {
+//                tx_buf[2] = 0;
+//            }
+//            if (rx_config.pinMapping[ANALOG1_OUTPUT] == PINMAP_ANALOG) {
+//                tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT])>>2;
+//            } else {
+//                tx_buf[3] = 0;
+//            }
+            tx_buf[4] = (last_afcc_value >> 8);
+            tx_buf[5] = last_afcc_value & 0xff;
+          }
         }
+        //TODO: this too
+//        tx_packet_async(tx_buf, 9);
+//
+//        while(!tx_done()) {
+//            checkSerial();
+//        }
+      }
 
       rx_reset(1);
       //rx_reset(2);
@@ -773,8 +832,7 @@ loop()
 
 }
 
-int
-main(void)
+int main(void)
 {
   uint8_t i;
   systemInit();
@@ -794,14 +852,18 @@ main(void)
   configureSPI();
   rfmPreInit();
 
-  //TODO: this
-  //  if (checkIfConnected(OUTPUT_PIN[2],OUTPUT_PIN[3]))
-  //  { // ch1 - ch2 --> force scannerMode
-  //    scannerMode();
-  //  }
+  if (checkIfConnected(CH3_PIN,CH4_PIN))
+  { // port 3+4 --> force scannerMode
+    scannerMode();
+  }
 
-  //TODO: bind mode on jumper, port 1+2
-
+  if (checkIfConnected(CH1_PIN,CH2_PIN))
+  { // port 1+2 --> force bindmode
+      if(bindReceive(0))
+        {
+          bindWriteEeprom();
+        }
+  } else {
   if (bindReadEeprom())
     {
       printf("Good bind data found\r\n");
@@ -824,6 +886,7 @@ main(void)
         }
       bindWriteEeprom();
     }
+  }
 
   printf("Entering normal mode\r\n");
   hopcount = 0;
@@ -843,6 +906,18 @@ main(void)
   to_rx_mode(1);
   //to_rx_mode(2);
   firstpack = 0;
+
+  //################### RX SYNC AT STARTUP #################
+  if (bind_data.flags & TELEMETRY_ENABLED) {
+    uartInit((bind_data.flags & FRSKY_ENABLED)? 9600 : bind_data.serial_baudrate);
+    while (uartAvailable()) {
+      uartRead();
+    }
+  }
+  serial_head=0;
+  serial_tail=0;
+  firstpack = 0;
+  last_pack_time = micros();
 
   while (1)
     {

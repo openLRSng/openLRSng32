@@ -57,6 +57,11 @@ uint8_t rfmGetRSSI(uint8_t unit)
   return rfmReadRegister(unit, 0x26);
 }
 
+uint16_t rfmGetAFCC(uint8_t unit)
+{
+  return (((uint16_t)rfmReadRegister(unit, 0x2B)<<2) | ((uint16_t)rfmReadRegister(unit, 0x2C)>>6));
+}
+
 static void setModemRegs(uint8_t unit, struct rfm22_modem_regs* r)
 {
 
