@@ -38,16 +38,16 @@
 
 #define LEDR_GPIO GPIOA
 #define LEDR_PIN  GPIO_Pin_11
-#define LEDR_ON   digitalHi(LEDR_GPIO,LEDR_PIN)
-#define LEDR_OFF  digitalLo(LEDR_GPIO,LEDR_PIN)
+#define LEDR_ON()   digitalHi(LEDR_GPIO,LEDR_PIN)
+#define LEDR_OFF()  digitalLo(LEDR_GPIO,LEDR_PIN)
 #define LEDG_GPIO GPIOA
 #define LEDG_PIN  GPIO_Pin_12
-#define LEDG_ON   digitalHi(LEDG_GPIO,LEDG_PIN)
-#define LEDG_OFF  digitalLo(LEDG_GPIO,LEDG_PIN)
+#define LEDG_ON()   digitalHi(LEDG_GPIO,LEDG_PIN)
+#define LEDG_OFF()  digitalLo(LEDG_GPIO,LEDG_PIN)
 #define LEDB_GPIO GPIOA
 #define LEDB_PIN  GPIO_Pin_13
-#define LEDB_ON   digitalHi(LEDB_GPIO,LEDB_PIN)
-#define LEDB_OFF  digitalLo(LEDB_GPIO,LEDB_PIN)
+#define LEDB_ON()   digitalHi(LEDB_GPIO,LEDB_PIN)
+#define LEDB_OFF()  digitalLo(LEDB_GPIO,LEDB_PIN)
 
 #ifndef FLASH_PAGE_COUNT
 #define FLASH_PAGE_COUNT 128
