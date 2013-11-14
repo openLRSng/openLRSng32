@@ -1,155 +1,356 @@
-###############################################################################
-# "THE BEER-WARE LICENSE" (Revision 42):
-# <msmith@FreeBSD.ORG> wrote this file. As long as you retain this notice you
-# can do whatever you want with this stuff. If we meet some day, and you think
-# this stuff is worth it, you can buy me a beer in return
-###############################################################################
+#=============================================================================#
+# ARM makefile
 #
-# Makefile for building shit on STM32F103.
+# author: Freddie Chopin, http://www.freddiechopin.info/
+# last change: 2012-01-07
 #
+# this makefile is based strongly on many examples found in the network
+#=============================================================================#
 
-###############################################################################
-# Things that the user might override on the commandline
-#
+#=============================================================================#
+# toolchain configuration
+#=============================================================================#
 
-# Compile-time options
-OPTIONS		?=
+TOOLCHAIN = arm-none-eabi-
 
-# Debugger optons, must be empty or GDB
-DEBUG ?=
+CXX = $(TOOLCHAIN)g++
+CC = $(TOOLCHAIN)gcc
+AS = $(TOOLCHAIN)gcc -x assembler-with-cpp
+OBJCOPY = $(TOOLCHAIN)objcopy
+OBJDUMP = $(TOOLCHAIN)objdump
+SIZE = $(TOOLCHAIN)size
+RM = rm -f
 
-TARGET = openLRSng32_RX
+#=============================================================================#
+# project configuration
+#=============================================================================#
 
-# Working directories
-ROOT		 = $(dir $(lastword $(MAKEFILE_LIST)))
-SRC_DIR		 = $(ROOT)/src
-CMSIS_DIR	 = $(ROOT)/lib/CMSIS
-STDPERIPH_DIR	 = $(ROOT)/lib/STM32F10x_StdPeriph_Driver
-OBJECT_DIR	 = $(ROOT)/obj
-BIN_DIR		 = $(ROOT)/obj
+# project name
+PROJECT = openLRS_RX32
+PROJECT_USB = $(PROJECT).USB
 
-# Source files common to all targets
-COMMON_SRC	 = startup_stm32f10x_md_gcc.S \
-		   main.c \
-		   drv_system.c \
-		   drv_uart.c \
-		   drv_pwm.c \
-		   drv_spi.c \
-		   drv_i2c.c \
-		   drv_mpu6050.c \
-		   drv_rfm.c \
-	  	   drv_adc.c \
-		   drv_gpio.c \
-		   binding.c \
-		   printf.c \
-		   hw_defines.c \
-		   $(CMSIS_SRC) \
-		   $(STDPERIPH_SRC)
+# core type
+CORE = cortex-m3
 
-# Search path for sources
-VPATH		:= $(SRC_DIR):$(SRC_DIR)/startups
+# linker script
+LD_SCRIPT = stm32_flash.ld
+LD_USB_SCRIPT = stm32_flash_usb.ld
 
-# Search path and source files for the CMSIS sources
-VPATH		:= $(VPATH):$(CMSIS_DIR)/CM3/CoreSupport:$(CMSIS_DIR)/CM3/DeviceSupport/ST/STM32F10x
-CMSIS_SRC	 = $(notdir $(wildcard $(CMSIS_DIR)/CM3/CoreSupport/*.c \
-			               $(CMSIS_DIR)/CM3/DeviceSupport/ST/STM32F10x/*.c))
+# output folder (absolute or relative path, leave empty for in-tree compilation)
+OUT_DIR = out
 
-# Search path and source files for the ST stdperiph library
-VPATH		:= $(VPATH):$(STDPERIPH_DIR)/src
-STDPERIPH_SRC	 = $(notdir $(wildcard $(STDPERIPH_DIR)/src/*.c))
+# C++ definitions (e.g. "-Dsymbol_with_value=0xDEAD -Dsymbol_without_value")
+CXX_DEFS = -DSTM32F10X_MD
 
-###############################################################################
-# Things that might need changing to use different tools
-#
+# C definitions
+C_DEFS = -DSTM32F10X_MD -DUSE_STDPERIPH_DRIVER
+#C_DEFS += -DDISABLE_PA10
+#C_DEFS += -DUSB_DISC_DEV=GPIOD -DUSB_DISC_PIN=GPIO_Pin_11 -DUSB_DISC_RCC=RCC_APB2Periph_GPIOA
 
-# Tool names
-CC		 = arm-none-eabi-gcc
-OBJCOPY		 = arm-none-eabi-objcopy
+# ASM definitions
+AS_DEFS =
 
-#
-# Tool options.
-#
-INCLUDE_DIRS	 = $(SRC_DIR) \
-		   $(STDPERIPH_DIR)/inc \
-		   $(CMSIS_DIR)/CM3/CoreSupport \
-		   $(CMSIS_DIR)/CM3/DeviceSupport/ST/STM32F10x \
+# include directories (absolute or relative paths to additional folders with
+# headers, current folder is always included)
+INC_DIRS = src Libraries \
+	Libraries/CMSIS/Include \
+	Libraries/CMSIS/Device/ST/STM32F10x/Include \
+	Libraries/STM32F10x_StdPeriph_Driver/inc \
+	src/drv \
+	src/sensors
+	
+# library directories (absolute or relative paths to additional folders with
+# libraries)
+LIB_DIRS =
 
-ARCH_FLAGS	 = -mthumb -mcpu=cortex-m3
-BASE_CFLAGS		 = $(ARCH_FLAGS) \
-		   $(addprefix -D,$(OPTIONS)) \
-		   $(addprefix -I,$(INCLUDE_DIRS)) \
-		   -Wall -Werror \
-		   -ffunction-sections \
-		   -fdata-sections \
-		   -DSTM32F10X_MD \
-		   -DUSE_STDPERIPH_DRIVER \
+# libraries (additional libraries for linking, e.g. "-lm -lsome_name" to link
+# math library libm.a and libsome_name.a)
+LIBS = -lm
 
-ASFLAGS		 = $(ARCH_FLAGS) \
-		   -x assembler-with-cpp \
-		   $(addprefix -I,$(INCLUDE_DIRS))
+# additional directories with source files (absolute or relative paths to
+# folders with source files, current folder is always included)
+SRCS_DIRS = Libraries/STM32F10x_StdPeriph_Driver/src src src/startup src/sys \
+	Libraries/STM32_USB-FS-Device_Driver/src \
+	src/drv \
+	src/sensors
 
-# XXX Map/crossref output?
-LD_SCRIPT	 = $(ROOT)/stm32_flash.ld
-LDFLAGS		 = -lm \
-		   $(ARCH_FLAGS) \
-		   -static \
-		   -Wl,-gc-sections \
-		   -T$(LD_SCRIPT)
+# extension of C++ files
+CXX_EXT = cpp
 
-###############################################################################
-# No user-serviceable parts below
-###############################################################################
+# wildcard for C++ source files (all files with CXX_EXT extension found in
+# current folder and SRCS_DIRS folders will be compiled and linked)
+CXX_SRCS = $(wildcard $(patsubst %, %/*.$(CXX_EXT), . $(SRCS_DIRS)))
 
-#
-# Things we will build
-#
+# extension of C files
+C_EXT = c
 
-ifeq ($(DEBUG),GDB)
-CFLAGS = $(BASE_CFLAGS) \
-	-ggdb \
-	-O0
+# wildcard for C source files (all files with C_EXT extension found in current
+# folder and SRCS_DIRS folders will be compiled and linked)
+C_SRCS = $(wildcard $(patsubst %, %/*.$(C_EXT), . $(SRCS_DIRS)))
+
+# extension of ASM files
+AS_EXT = S
+
+# wildcard for ASM source files (all files with AS_EXT extension found in
+# current folder and SRCS_DIRS folders will be compiled and linked)
+AS_SRCS = $(wildcard $(patsubst %, %/*.$(AS_EXT), . $(SRCS_DIRS)))
+
+# optimization flags ("-O0" - no optimization, "-O1" - optimize, "-O2" -
+# optimize even more, "-Os" - optimize for size or "-O3" - optimize yet more) 
+OPTIMIZATION = -Os
+
+# set to 1 to optimize size by removing unused code and data during link phase
+REMOVE_UNUSED = 1
+
+# set to 1 to compile and link additional code required for C++
+USES_CXX = 0
+
+# define warning options here
+CXX_WARNINGS = -Wall -Wextra
+C_WARNINGS = -Wall -Wstrict-prototypes -Wextra
+
+# C++ language standard ("c++98", "gnu++98" - default, "c++0x", "gnu++0x")
+CXX_STD = gnu++98
+
+# C language standard ("c89" / "iso9899:1990", "iso9899:199409",
+# "c99" / "iso9899:1999", "gnu89" - default, "gnu99")
+C_STD = gnu99
+
+#=============================================================================#
+# set the VPATH according to SRCS_DIRS
+#=============================================================================#
+
+VPATH = $(SRCS_DIRS)
+
+#=============================================================================#
+# when using output folder, append trailing slash to its name
+#=============================================================================#
+
+ifeq ($(strip $(OUT_DIR)), )
+	OUT_DIR_F =
 else
-CFLAGS = $(BASE_CFLAGS) \
-	-Os
+	OUT_DIR_F = $(strip $(OUT_DIR))/
 endif
 
+#=============================================================================#
+# various compilation flags
+#=============================================================================#
 
-TARGET_HEX	 = $(BIN_DIR)/$(TARGET).hex
-TARGET_ELF	 = $(BIN_DIR)/$(TARGET).elf
-TARGET_OBJS	 = $(addsuffix .o,$(addprefix $(OBJECT_DIR)/,$(basename $(COMMON_SRC))))
+# core flags
+CORE_FLAGS = -mcpu=$(CORE) -mthumb
 
-# List of buildable ELF files and their object dependencies.
-# It would be nice to compute these lists, but that seems to be just beyond make.
+# flags for C++ compiler
+#CXX_FLAGS = -std=$(CXX_STD) -g -ggdb3 -fno-rtti -fno-exceptions -fverbose-asm -Wa,-ahlms=$(OUT_DIR_F)$(notdir $(<:.$(CXX_EXT)=.lst))
+CXX_FLAGS = -std=$(CXX_STD) -fno-rtti -fno-exceptions -fverbose-asm -Wa,-ahlms=$(OUT_DIR_F)$(notdir $(<:.$(CXX_EXT)=.lst))
 
-$(TARGET_HEX): $(TARGET_ELF)
-	$(OBJCOPY) -O ihex --set-start 0x8000000 $< $@
+# flags for C compiler
+#C_FLAGS = -std=$(C_STD) -g -ggdb3 -fverbose-asm -Wa,-ahlms=$(OUT_DIR_F)$(notdir $(<:.$(C_EXT)=.lst))
+C_FLAGS = -std=$(C_STD) -fverbose-asm -Wa,-ahlms=$(OUT_DIR_F)$(notdir $(<:.$(C_EXT)=.lst))
+C_FLAGS += -fsingle-precision-constant
 
-$(TARGET_ELF):  $(TARGET_OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS)
+# flags for assembler
+#AS_FLAGS = -g -ggdb3 -Wa,-amhls=$(OUT_DIR_F)$(notdir $(<:.$(AS_EXT)=.lst))
+AS_FLAGS = -Wa,-amhls=$(OUT_DIR_F)$(notdir $(<:.$(AS_EXT)=.lst))
 
-# Compile
-$(OBJECT_DIR)/%.o: %.c
-	@mkdir -p $(dir $@)
-	@echo %% $(notdir $<)
-	@$(CC) -c -o $@ $(CFLAGS) $<
+# flags for linker
+LD_FLAGS = -T$(LD_SCRIPT) -g -Wl,-Map=$(OUT_DIR_F)$(PROJECT).map,--cref,--no-warn-mismatch
+LD_USB_FLAGS = -T$(LD_USB_SCRIPT) -g -Wl,-Map=$(OUT_DIR_F)$(PROJECT_USB).map,--cref,--no-warn-mismatch
 
-# Assemble
-$(OBJECT_DIR)/%.o: %.s
-	@mkdir -p $(dir $@)
-	@echo %% $(notdir $<)
-	@$(CC) -c -o $@ $(ASFLAGS) $<
-$(OBJECT_DIR)/%.o): %.S
-	@mkdir -p $(dir $@)
-	@echo %% $(notdir $<)
-	@$(CC) -c -o $@ $(ASFLAGS) $<
+# process option for removing unused code
+ifeq ($(REMOVE_UNUSED), 1)
+	LD_FLAGS += -Wl,--gc-sections
+	LD_USB_FLAGS += -Wl,--gc-sections
+	OPTIMIZATION += -ffunction-sections -fdata-sections
+endif
+
+# if __USES_CXX is defined for ASM then code for global/static constructors /
+# destructors is compiled; if -nostartfiles option for linker is added then C++
+# initialization / finalization code is not linked
+ifeq ($(USES_CXX), 1)
+	AS_DEFS += -D__USES_CXX
+else
+#	LD_FLAGS += -static -nostartfiles
+#	LD_USB_FLAGS += -static -nostartfiles
+endif
+
+#=============================================================================#
+# do some formatting
+#=============================================================================#
+
+CXX_OBJS = $(addprefix $(OUT_DIR_F), $(notdir $(CXX_SRCS:.$(CXX_EXT)=.o)))
+C_OBJS = $(addprefix $(OUT_DIR_F), $(notdir $(C_SRCS:.$(C_EXT)=.o)))
+AS_OBJS = $(addprefix $(OUT_DIR_F), $(notdir $(AS_SRCS:.$(AS_EXT)=.o)))
+OBJS = $(AS_OBJS) $(C_OBJS) $(CXX_OBJS) $(USER_OBJS)
+DEPS = $(OBJS:.o=.d)
+INC_DIRS_F = -I. $(patsubst %, -I%, $(INC_DIRS))
+LIB_DIRS_F = $(patsubst %, -L%, $(LIB_DIRS))
+
+ELF = $(OUT_DIR_F)$(PROJECT).elf
+HEX = $(OUT_DIR_F)$(PROJECT).hex
+BIN = $(OUT_DIR_F)$(PROJECT).bin
+LSS = $(OUT_DIR_F)$(PROJECT).lss
+DMP = $(OUT_DIR_F)$(PROJECT).dmp
+
+USBELF = $(OUT_DIR_F)$(PROJECT_USB).elf
+USBHEX = $(OUT_DIR_F)$(PROJECT_USB).hex
+USBBIN = $(OUT_DIR_F)$(PROJECT_USB).bin
+USBLSS = $(OUT_DIR_F)$(PROJECT_USB).lss
+USBDMP = $(OUT_DIR_F)$(PROJECT_USB).dmp
+
+
+# format final flags for tools, request dependancies for C++, C and asm
+CXX_FLAGS_F = $(CORE_FLAGS) $(OPTIMIZATION) $(CXX_WARNINGS) $(CXX_FLAGS)  $(CXX_DEFS) -MD -MP -MF $(OUT_DIR_F)$(@F:.o=.d) $(INC_DIRS_F)
+C_FLAGS_F = $(CORE_FLAGS) $(OPTIMIZATION) $(C_WARNINGS) $(C_FLAGS) $(C_DEFS) -MD -MP -MF $(OUT_DIR_F)$(@F:.o=.d) $(INC_DIRS_F)
+AS_FLAGS_F = $(CORE_FLAGS) $(AS_FLAGS) $(AS_DEFS) -MD -MP -MF $(OUT_DIR_F)$(@F:.o=.d) $(INC_DIRS_F)
+LD_FLAGS_F = $(CORE_FLAGS) $(LD_FLAGS) $(LIB_DIRS_F)
+LD_USB_FLAGS_F = $(CORE_FLAGS) $(LD_USB_FLAGS) $(LIB_DIRS_F)
+
+#contents of output directory
+GENERATED = $(wildcard $(patsubst %, $(OUT_DIR_F)*.%, bin d dmp elf hex lss lst map o))
+
+#=============================================================================#
+# make all
+#=============================================================================#
+
+#all : make_output_dir $(ELF) $(LSS) $(DMP) $(HEX) $(BIN) print_size
+all: make_output_dir $(ELF) $(LSS) $(DMP) $(HEX) $(BIN) $(USBELF) $(USBLSS) $(USBBIN) print_size \
+#					$(USBELF) $(USBLSS) $(USBBIN
+
+# make object files dependent on Makefile
+#$(OBJS) : Makefile
+# make .elf file dependent on linker script
+$(ELF) : $(LD_SCRIPT)
+$(USBELF) : $(LD_USB_SCRIPT)
+
+#-----------------------------------------------------------------------------#
+# linking - objects -> elf
+#-----------------------------------------------------------------------------#
+
+$(ELF) : $(OBJS)  $(LD_SCRIPT)
+	@echo 'Linking target: $(ELF)'
+	$(CXX) $(LD_FLAGS_F) $(OBJS) $(LIBS) -o $@
+	@echo ' '
+
+#-----------------------------------------------------------------------------#
+# linking - objects -> elf, USB version
+#-----------------------------------------------------------------------------#
+
+$(USBELF) : $(ELF) $(OBJS) $(LD_USB_SCRIPT)
+	@echo 'Linking target: $(USBELF)'
+	$(CXX) $(LD_USB_FLAGS_F) $(OBJS) $(LIBS) -o $@
+	@echo ' '
+	
+#-----------------------------------------------------------------------------#
+# compiling - C++ source -> objects
+#-----------------------------------------------------------------------------#
+
+$(OUT_DIR_F)%.o : %.$(CXX_EXT)
+	@echo 'Compiling file: $<'
+	$(CXX) -c $(CXX_FLAGS_F) $< -o $@
+	@echo ' '
+
+#-----------------------------------------------------------------------------#
+# compiling - C source -> objects
+#-----------------------------------------------------------------------------#
+
+$(OUT_DIR_F)%.o : %.$(C_EXT)
+	@echo 'Compiling file: $<'
+	$(CC) -c $(C_FLAGS_F) $< -o $@
+	@echo ' '
+
+#-----------------------------------------------------------------------------#
+# assembling - ASM source -> objects
+#-----------------------------------------------------------------------------#
+
+$(OUT_DIR_F)%.o : %.$(AS_EXT)
+	@echo 'Assembling file: $<'
+	$(AS) -c $(AS_FLAGS_F) $< -o $@
+	@echo ' '
+
+#-----------------------------------------------------------------------------#
+# memory images - elf -> hex, elf -> bin
+#-----------------------------------------------------------------------------#
+
+$(HEX) : $(ELF)
+	@echo 'Creating IHEX image: $(HEX)'
+	$(OBJCOPY) -O ihex $< $@
+	@echo ' '
+
+$(BIN) : $(ELF)
+	@echo 'Creating binary image: $(BIN)'
+	$(OBJCOPY) -O binary $< $@
+	@echo ' '
+	
+$(USBBIN) : $(USBELF)
+	@echo 'Creating binary image: $(USBBIN)'
+	$(OBJCOPY) -O binary $< $@
+	@echo ' '	
+
+#-----------------------------------------------------------------------------#
+# memory dump - elf -> dmp
+#-----------------------------------------------------------------------------#
+
+$(DMP) : $(ELF)
+	@echo 'Creating memory dump: $(DMP)'
+	$(OBJDUMP) -x --syms $< > $@
+	@echo ' '
+
+#-----------------------------------------------------------------------------#
+# extended listing - elf -> lss
+#-----------------------------------------------------------------------------#
+
+$(LSS) : $(ELF)
+	@echo 'Creating extended listing: $(LSS)'
+	$(OBJDUMP) -S $< > $@
+	@echo ' '
+
+	
+$(USBLSS) : $(USBELF)
+	@echo 'Creating extended listing: $(USBLSS)'
+	$(OBJDUMP) -S $< > $@
+	@echo ' '	
+#-----------------------------------------------------------------------------#
+# print the size of the objects and the .elf file
+#-----------------------------------------------------------------------------#
+
+print_size: $(OBJS) $(ELF)
+	-#@echo 'Size of modules:'
+	-#$(SIZE) -B -t --common $(OBJS) $(USER_OBJS)
+	-#@echo ' '
+	@echo 'Size of target .elf file:'
+	$(SIZE) -B $(ELF)
+	@echo ' '
+
+#-----------------------------------------------------------------------------#
+# create the desired output directory
+#-----------------------------------------------------------------------------#
+
+make_output_dir :
+	$(shell mkdir $(OUT_DIR_F) 2>/dev/null)
+
+#=============================================================================#
+# make clean
+#=============================================================================#
 
 clean:
-	rm -f $(TARGET_HEX) $(TARGET_ELF) $(TARGET_OBJS)
+ifeq ($(strip $(OUT_DIR_F)), )
+	@echo 'Removing all generated output files'
+else
+	@echo 'Removing all generated output files from output directory: $(OUT_DIR_F)'
+endif
+ifneq ($(strip $(GENERATED)), )
+	$(RM) $(GENERATED)
+else
+	@echo 'Nothing to remove...'
+endif
 
-help:
-	@echo ""
-	@echo "Makefile for STM32"
-	@echo ""
-	@echo "Usage:"
-	@echo "        make [OPTIONS=\"<options>\"]"
-	@echo ""
+#=============================================================================#
+# global exports
+#=============================================================================#
+
+.PHONY: all clean dependents
+
+.SECONDARY:
+
+# include dependancy files
+-include $(DEPS)

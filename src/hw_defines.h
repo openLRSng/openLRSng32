@@ -13,7 +13,8 @@
 #define BOARD_TYPE DTFUHF10CH //DTF UHF 10ch
 //*******************************
 
-typedef struct {
+typedef struct
+{
     TIM_TypeDef *tim;
     GPIO_TypeDef *gpio;
     uint32_t pin;
@@ -22,25 +23,27 @@ typedef struct {
     uint8_t outputEnable;
 } pinDefine_t;
 
-typedef struct {
+typedef struct
+{
     uint8_t channel;
 } adcDefine_t;
 
 #if BOARD_TYPE == DTFUHF10CH
 //PPM_PIN is the only pin connected to timer1. timerHardware[12]
 //RSSI_PIN must be the only pin connected to its timer. timerHardware[8]
-enum BOARD_PINMAP {
-	CH1_PIN = 0,
-	CH2_PIN,
-	CH3_PIN,
-	CH4_PIN,
-	CH5_PIN,
-	CH6_PIN,
-	CH7_PIN,
-	CH8_PIN,
-	CH9_PIN,
-	CH10_PIN,
-	MAX_OUTPUTS
+enum BOARD_PINMAP
+{
+    CH1_PIN = 0,
+    CH2_PIN,
+    CH3_PIN,
+    CH4_PIN,
+    CH5_PIN,
+    CH6_PIN,
+    CH7_PIN,
+    CH8_PIN,
+    CH9_PIN,
+    CH10_PIN,
+    MAX_OUTPUTS
 };
 
 //special pins def
