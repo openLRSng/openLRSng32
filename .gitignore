@@ -9,3 +9,5 @@
 
 .cproject
 .cproject.backup
+.uvgui.*
+.dep
