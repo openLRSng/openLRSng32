@@ -595,7 +595,7 @@
             <File>
               <FileName>startup_stm32f10x_md.s</FileName>
               <FileType>2</FileType>
-              <FilePath>.\startup_stm32f10x_md.s</FilePath>
+              <FilePath>.\src\startup\startup_stm32f10x_md.s</FilePath>
             </File>
           </Files>
         </Group>
