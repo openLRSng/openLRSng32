@@ -118,7 +118,10 @@
 /* #define SYSCLK_FREQ_36MHz  36000000 */
 /* #define SYSCLK_FREQ_48MHz  48000000 */
 /* #define SYSCLK_FREQ_56MHz  56000000 */
-#define SYSCLK_FREQ_72MHz  72000000
+
+// AKA for 80mhz clock
+/* #define SYSCLK_FREQ_72MHz  72000000 */
+#define SYSCLK_FREQ_80MHz   80000000
 #endif
 
 /*!< Uncomment the following line if you need to use external SRAM mounted
@@ -166,6 +169,8 @@ uint32_t SystemCoreClock         = SYSCLK_FREQ_48MHz;        /*!< System Clock F
 uint32_t SystemCoreClock         = SYSCLK_FREQ_56MHz;        /*!< System Clock Frequency (Core Clock) */
 #elif defined SYSCLK_FREQ_72MHz
 uint32_t SystemCoreClock         = SYSCLK_FREQ_72MHz;        /*!< System Clock Frequency (Core Clock) */
+#elif defined SYSCLK_FREQ_80MHz
+uint32_t SystemCoreClock         = SYSCLK_FREQ_80MHz;        /*!< System Clock Frequency (Core Clock) */
 #else /*!< HSI Selected as System Clock source */
 uint32_t SystemCoreClock         = HSI_VALUE;        /*!< System Clock Frequency (Core Clock) */
 #endif
@@ -191,7 +196,7 @@ static void SetSysClockTo36(void);
 static void SetSysClockTo48(void);
 #elif defined SYSCLK_FREQ_56MHz
 static void SetSysClockTo56(void);
-#elif defined SYSCLK_FREQ_72MHz
+#elif defined (SYSCLK_FREQ_72MHz) || defined (SYSCLK_FREQ_80MHz)
 static void SetSysClockTo72(void);
 #endif
 
@@ -440,7 +445,7 @@ static void SetSysClock(void)
     SetSysClockTo48();
 #elif defined SYSCLK_FREQ_56MHz
     SetSysClockTo56();
-#elif defined SYSCLK_FREQ_72MHz
+#elif defined SYSCLK_FREQ_72MHz || defined SYSCLK_FREQ_80MHz
     SetSysClockTo72();
 #endif
 
@@ -1005,7 +1010,7 @@ static void SetSysClockTo56(void)
     }
 }
 
-#elif defined SYSCLK_FREQ_72MHz
+#elif defined SYSCLK_FREQ_72MHz || defined SYSCLK_FREQ_80MHz
 /**
   * @brief  Sets System clock frequency to 72MHz and configure HCLK, PCLK2
   *         and PCLK1 prescalers.
@@ -1084,7 +1089,14 @@ static void SetSysClockTo72(void)
         /*  PLL configuration: PLLCLK = HSE * 9 = 72 MHz */
         RCC->CFGR &= (uint32_t)((uint32_t)~(RCC_CFGR_PLLSRC | RCC_CFGR_PLLXTPRE |
                                             RCC_CFGR_PLLMULL));
+
+        // AKA exchanged the 2 versions to allow for 80mhz clock
+#ifdef SYSCLK_FREQ_72MHz
         RCC->CFGR |= (uint32_t)(RCC_CFGR_PLLSRC_HSE | RCC_CFGR_PLLMULL9);
+#endif
+#ifdef SYSCLK_FREQ_80MHz
+        RCC->CFGR |= (uint32_t)(RCC_CFGR_PLLSRC_HSE | RCC_CFGR_PLLMULL10);
+#endif
 #endif /* STM32F10X_CL */
 
         /* Enable PLL */

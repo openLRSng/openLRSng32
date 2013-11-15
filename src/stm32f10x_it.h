@@ -45,13 +45,6 @@ void SVC_Handler(void);
 void DebugMon_Handler(void);
 void PendSV_Handler(void);
 void SysTick_Handler(void);
-// HJI void USB_LP_CAN1_RX0_IRQHandler(void);
-
-// HJI #if defined (USE_STM32L152_EVAL) || (USE_STM32373C_EVAL)
-// HJI void USART2_IRQHandler(void);
-// HJI #else
-// HJI void USART1_IRQHandler(void);
-// HJI #endif /* USE_STM32L152_EVAL */
 #endif /* __STM32_IT_H */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
