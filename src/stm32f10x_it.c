@@ -151,10 +151,10 @@ void PendSV_Handler(void)
 * Output         : None
 * Return         : None
 *******************************************************************************/
+// AKA removed from here because it's already defined in drv_system.c
 // AKA void SysTick_Handler(void)
 // AKA {
-// AKA    sysTickUptime++;
-// AKA}
+// AKA }
 
 /******************************************************************************/
 /*                 STM32 Peripherals Interrupt Handlers                   */
