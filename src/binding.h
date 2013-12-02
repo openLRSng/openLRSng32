@@ -100,26 +100,24 @@ extern uint8_t default_hop_list[];
 
 #define MAXHOPS 24
 
-struct __attribute__((__packed__)) bind_data
-{
-    uint8_t version;
-    uint32_t serial_baudrate;
-    uint32_t rf_frequency;
-    uint32_t rf_magic;
-    uint8_t rf_power;
-    uint8_t rf_channel_spacing;
-    uint8_t hopchannel[MAXHOPS];
-    uint8_t modem_params;
-    uint8_t flags;
+struct __attribute__((__packed__)) bind_data {
+  uint8_t version;
+  uint32_t serial_baudrate;
+  uint32_t rf_frequency;
+  uint32_t rf_magic;
+  uint8_t rf_power;
+  uint8_t rf_channel_spacing;
+  uint8_t hopchannel[MAXHOPS];
+  uint8_t modem_params;
+  uint8_t flags;
 };
 
 extern struct bind_data bind_data;
 
 
-struct rfm22_modem_regs
-{
-    uint32_t bps;
-    uint8_t  r_1c, r_1d, r_1e, r_20, r_21, r_22, r_23, r_24, r_25, r_2a, r_6e, r_6f, r_70, r_71, r_72;
+struct rfm22_modem_regs {
+  uint32_t bps;
+  uint8_t  r_1c, r_1d, r_1e, r_20, r_21, r_22, r_23, r_24, r_25, r_2a, r_6e, r_6f, r_70, r_71, r_72;
 };
 
 extern struct rfm22_modem_regs modem_params[];
@@ -137,19 +135,18 @@ extern struct rfm22_modem_regs bind_params;
 #define PINMAP_ANALOG 0x26
 #define PINMAP_LBEEP  0x27
 
-struct __attribute__((__packed__)) rx_config
-{
-    uint8_t  rx_type; // RX type filled in by RX, do not change
-    uint8_t  pinMapping[13];
-    uint8_t  flags;
-    uint8_t  RSSIpwm;
-    uint32_t beacon_frequency;
-    uint8_t  beacon_deadtime;
-    uint8_t  beacon_interval;
-    uint16_t minsync;
-    uint8_t  failsafeDelay;
-    uint8_t  ppmStopDelay;
-    uint8_t  pwmStopDelay;
+struct __attribute__((__packed__)) rx_config {
+  uint8_t  rx_type; // RX type filled in by RX, do not change
+  uint8_t  pinMapping[13];
+  uint8_t  flags;
+  uint8_t  RSSIpwm;
+  uint32_t beacon_frequency;
+  uint8_t  beacon_deadtime;
+  uint8_t  beacon_interval;
+  uint16_t minsync;
+  uint8_t  failsafeDelay;
+  uint8_t  ppmStopDelay;
+  uint8_t  pwmStopDelay;
 };
 
 extern struct rx_config rx_config;
