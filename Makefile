@@ -58,7 +58,7 @@ INC_DIRS = src Libraries \
 	Libraries/STM32F10x_StdPeriph_Driver/inc \
 	src/drv \
 	src/sensors
-	
+
 # library directories (absolute or relative paths to additional folders with
 # libraries)
 LIB_DIRS =
@@ -239,7 +239,7 @@ $(USBELF) : $(ELF) $(OBJS) $(LD_USB_SCRIPT)
 	@echo 'Linking target: $(USBELF)'
 	$(CXX) $(LD_USB_FLAGS_F) $(OBJS) $(LIBS) -o $@
 	@echo ' '
-	
+
 #-----------------------------------------------------------------------------#
 # compiling - C++ source -> objects
 #-----------------------------------------------------------------------------#
@@ -280,7 +280,7 @@ $(BIN) : $(ELF)
 	@echo 'Creating binary image: $(BIN)'
 	$(OBJCOPY) -O binary $< $@
 	@echo ' '
-	
+
 $(USBBIN) : $(USBELF)
 	@echo 'Creating binary image: $(USBBIN)'
 	$(OBJCOPY) -O binary $< $@
@@ -304,7 +304,7 @@ $(LSS) : $(ELF)
 	$(OBJDUMP) -S $< > $@
 	@echo ' '
 
-	
+
 $(USBLSS) : $(USBELF)
 	@echo 'Creating extended listing: $(USBLSS)'
 	$(OBJDUMP) -S $< > $@

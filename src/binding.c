@@ -13,9 +13,11 @@ struct rx_config rx_config;
 
 struct rfm22_modem_regs modem_params[] =
 {
-    { 4800, 0x1a, 0x40, 0x0a, 0xa1, 0x20, 0x4e, 0xa5, 0x00, 0x1b, 0x1e, 0x27, 0x52, 0x2c, 0x23, 0x30 }, // 50000 0x00
-    { 9600, 0x05, 0x40, 0x0a, 0xa1, 0x20, 0x4e, 0xa5, 0x00, 0x20, 0x24, 0x4e, 0xa5, 0x2c, 0x23, 0x30 }, // 25000 0x00
-    { 19200, 0x06, 0x40, 0x0a, 0xd0, 0x00, 0x9d, 0x49, 0x00, 0x7b, 0x28, 0x9d, 0x49, 0x2c, 0x23, 0x30 } // 25000 0x01
+    { 4800, 0x1a, 0x40, 0x0a, 0xa1, 0x20, 0x4e, 0xa5, 0x00, 0x1b, 0x1e, 0x27, 0x52, 0x2c, 0x23, 0x30 },
+    { 9600, 0x05, 0x40, 0x0a, 0xa1, 0x20, 0x4e, 0xa5, 0x00, 0x20, 0x24, 0x4e, 0xa5, 0x2c, 0x23, 0x30 },
+    { 19200, 0x06, 0x40, 0x0a, 0xd0, 0x00, 0x9d, 0x49, 0x00, 0x7b, 0x28, 0x9d, 0x49, 0x2c, 0x23, 0x30 },
+    { 57600,0x05, 0x40, 0x0a, 0x45, 0x01, 0xd7, 0xdc, 0x03, 0xb8, 0x1e, 0x0e, 0xbf, 0x00, 0x23, 0x2e },
+    {125000,0x8a, 0x40, 0x0a, 0x60, 0x01, 0x55, 0x55, 0x02, 0xad, 0x1e, 0x20, 0x00, 0x00, 0x23, 0xc8 },
 };
 
 struct rfm22_modem_regs bind_params =
@@ -44,7 +46,7 @@ uint32_t getInterval(struct bind_data *_bind_data)
 
     ret = (BYTES_AT_BAUD_TO_USEC(getPacketSize(), modem_params[_bind_data->modem_params].bps) + 2000);
 
-    if (_bind_data->flags & TELEMETRY_ENABLED)
+    if (_bind_data->flags & TELEMETRY_MASK)
     {
         ret += (BYTES_AT_BAUD_TO_USEC(TELEMETRY_PACKETSIZE, modem_params[_bind_data->modem_params].bps) + 1000);
     }
@@ -58,6 +60,36 @@ uint32_t getInterval(struct bind_data *_bind_data)
     //  }
 
     return ret;
+}
+
+// non linear mapping
+// 0 - 0
+// 1-99 - 100ms - 9900ms (100ms res)
+// 100-189 - 10s - 99s (1s res)
+// 190-209 - 100s - 290s (10s res)
+// 210-255 - 5m - 50m (1m res)
+uint32_t delayInMs(uint16_t d)
+{
+  uint32_t ms;
+  if (d < 100) {
+    ms = d;
+  } else if (d < 190) {
+    ms = (d-90) * 10UL;
+  } else if (d < 210) {
+    ms = (d-180) * 100UL;
+  } else {
+    ms = (d-205) * 600UL;
+  }
+  return ms * 100UL;
+}
+
+// non linear mapping
+// 0-89 - 10s - 99s
+// 90-109 - 100s - 290s (10s res)
+// 110-255 - 5m - 150m (1m res)
+uint32_t delayInMsLong(uint8_t d)
+{
+  return delayInMs((uint16_t)d+100);
 }
 
 static uint32_t checksum(uint8_t *data, uint32_t size)
@@ -224,17 +256,6 @@ void bindRandomize(void)
 void rxInitDefaults(void)
 {
     uint8_t i;
-    //#if (BOARD_TYPE == 3)
-    //  rx_config.rx_type = RX_FLYTRON8CH;
-    //  rx_config.pinMapping[0] = PINMAP_RSSI; // the CH0 on 8ch RX
-    //  for (i=1; i < 9; i++) {
-    //    rx_config.pinMapping[i] = i-1; // default to PWM out
-    //  }
-    //#elif (BOARD_TYPE == 5)
-    //  rx_config.rx_type = RX_OLRSNG4CH;
-    //  for (i=0; i<5; i++) {
-    //    rx_config.pinMapping[i]=i; // default to PWM out
-    //  }
 #if (BOARD_TYPE == DTFUHF10CH)
     rx_config.rx_type = RX_DTFUHF10CH;
 
@@ -254,7 +275,9 @@ void rxInitDefaults(void)
     rx_config.beacon_deadtime = DEFAULT_BEACON_DEADTIME;
     rx_config.beacon_interval = DEFAULT_BEACON_INTERVAL;
     rx_config.minsync = 3000;
-    rx_config.failsafe_delay = 10;
+    rx_config.failsafeDelay = 10;
+    rx_config.ppmStopDelay = 0;
+    rx_config.pwmStopDelay = 0;
 }
 
 void rxWriteEeprom(void)
@@ -336,6 +359,8 @@ void printRXconf(void)
     printf("Bdea: %d\r\n", rx_config.beacon_deadtime);
     printf("Bint: %d\r\n", rx_config.beacon_interval);
     printf("msyc: %d\r\n", rx_config.minsync);
-    printf("fsfe: %d\r\n", rx_config.failsafe_delay);
+    printf("fsfe: %d\r\n", rx_config.failsafeDelay);
+    printf("ppms: %d\r\n", rx_config.ppmStopDelay);
+    printf("pwms: %d\r\n", rx_config.pwmStopDelay);
 }
 

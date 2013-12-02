@@ -29,8 +29,14 @@
 #define DEFAULT_BAUDRATE 115200
 
 // BIND FLAGS
-#define TELEMETRY_ENABLED 0x08
-#define FRSKY_ENABLED     0x10
+#define TELEMETRY_OFF       0x00
+#define TELEMETRY_PASSTHRU  0x08
+#define TELEMETRY_FRSKY     0x10 // covers smartport if used with &
+#define TELEMETRY_SMARTPORT 0x18
+#define TELEMETRY_MASK      0x18
+#define MUTE_TX             0x20
+
+
 #define CHANNELS_4_4  1
 #define CHANNELS_8    2
 #define CHANNELS_8_4  3
@@ -38,14 +44,13 @@
 #define CHANNELS_12_4 5
 #define CHANNELS_16   6
 
-// RX flags
-#define FAILSAFE_NOPPM    0x01
-#define FAILSAFE_NOPWM    0x02
-#define PPM_MAX_8CH       0x04
-#define ALWAYS_BIND       0x08
-#define SLAVE_MODE        0x80
+#define DEFAULT_FLAGS (CHANNELS_8 | TELEMETRY_PASSTHRU)
 
-#define DEFAULT_FLAGS CHANNELS_8
+// RX flags
+#define PPM_MAX_8CH       0x01
+#define ALWAYS_BIND       0x02
+#define SLAVE_MODE        0x04
+#define IMMEDIATE_OUTPUT  0x08
 
 // helpper macro for European PMR channels
 #define EU_PMR_CH(x) (445993750L + 12500L * (x)) // valid for ch1-ch8
@@ -57,14 +62,14 @@
 #define DEFAULT_BEACON_DEADTIME 30 // time to wait until go into beacon mode (s)
 #define DEFAULT_BEACON_INTERVAL 10 // interval between beacon transmits (s)
 
-#define MIN_DEADTIME 10
-#define MAX_DEADTIME 65535
+#define MIN_DEADTIME 0
+#define MAX_DEADTIME 255
 
-#define MIN_INTERVAL 5
+#define MIN_INTERVAL 1
 #define MAX_INTERVAL 255
 
-#define BINDING_POWER     0x00 // 1 mW
-#define BINDING_VERSION   7
+#define BINDING_POWER     0x06 // 1 mW
+#define BINDING_VERSION   9
 
 //#define EEPROM_OFFSET     0x00
 //#define EEPROM_RX_OFFSET  0x40 // RX specific config struct
@@ -139,10 +144,12 @@ struct __attribute__((__packed__)) rx_config
     uint8_t  flags;
     uint8_t  RSSIpwm;
     uint32_t beacon_frequency;
-    uint16_t  beacon_deadtime;
+    uint8_t  beacon_deadtime;
     uint8_t  beacon_interval;
     uint16_t minsync;
-    uint8_t  failsafe_delay;
+    uint8_t  failsafeDelay;
+    uint8_t  ppmStopDelay;
+    uint8_t  pwmStopDelay;
 };
 
 extern struct rx_config rx_config;
@@ -150,6 +157,8 @@ extern struct rx_config rx_config;
 uint8_t getPacketSize(void);
 uint8_t getChannelCount(struct bind_data *_bind_data);
 uint32_t getInterval(struct bind_data *_bind_data);
+uint32_t delayInMs(uint16_t d);
+uint32_t delayInMsLong(uint8_t d);
 int16_t bindReadEeprom(void);
 void bindWriteEeprom(void);
 void bindInitDefaults(void);

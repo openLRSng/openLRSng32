@@ -6,6 +6,23 @@
 #define RX_OLRSNG12CH 0x03
 #define RX_DTFUHF10CH 0x04
 
+#define PINMAP_PPM 0x20
+#define PINMAP_RSSI 0x21
+#define PINMAP_SDA 0x22
+#define PINMAP_SCL 0x23
+#define PINMAP_RXD 0x24
+#define PINMAP_TXD 0x25
+#define PINMAP_ANALOG 0x26
+#define PINMAP_LBEEP 0x27 // packetloss beeper
+
+// Following table is used by the dialog code to
+// determine possible extra functions for each output.
+
+
+struct rxSpecialPinMap {
+  uint8_t output;
+  uint8_t type;
+};
 
 //*******************************
 //  SELECT HARDWARE HERE
@@ -55,5 +72,8 @@ extern const uint8_t PPM_PIN;
 extern const pinDefine_t pinDefine[];
 
 extern const adcDefine_t adcDefine[];
+
+extern const struct rxSpecialPinMap rxSpecialPins[];
+extern const uint8_t rxSpecialPinsSize;
 
 #endif

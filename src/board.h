@@ -68,3 +68,4 @@
 #include "drv_gpio.h"
 #include "drv_mpu6050.h"
 #include "binding.h"
+#include "version.h"

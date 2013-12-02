@@ -9,8 +9,18 @@ const uint8_t ANALOG1_PIN = CH8_PIN;
 const uint8_t RSSI_PIN = CH9_PIN;
 const uint8_t PPM_PIN = CH10_PIN;
 
+const struct rxSpecialPinMap rxSpecialPins[] = {
+  {6, PINMAP_ANALOG},
+  {7, PINMAP_ANALOG},
+  {8, PINMAP_RSSI},
+  {8, PINMAP_LBEEP},
+  {9, PINMAP_PPM},
+};
+
+const uint8_t rxSpecialPinsSize = sizeof(rxSpecialPins);
+  
 const pinDefine_t pinDefine[] =
-{
+  {
     { TIM2, GPIOA, GPIO_Pin_0, TIM_Channel_1, TIM2_IRQn, 0, },          // PWM1 ADC12_IN0
     { TIM2, GPIOA, GPIO_Pin_1, TIM_Channel_2, TIM2_IRQn, 0, },          // PWM2 ADC12_IN1
     { TIM2, GPIOA, GPIO_Pin_2, TIM_Channel_3, TIM2_IRQn, 0, },          // PWM3 ADC12_IN2
